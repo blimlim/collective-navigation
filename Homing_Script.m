@@ -40,10 +40,12 @@ domainHeight = 300;             % Height of the domain.
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
 tEnd = 1000;                    % End of simulation.
-alpha = 10/20;                  % Weighting of observations for heading calculation.
+alpha = 1/10;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
-sensingRange = 20;              % Perceptual range of individuals.
+gamma = (10/20) * ones(nIndividualsStart, 1);     % Individual weightings for observations - between 0 and 1
+
+sensingRange = 500;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -56,6 +58,10 @@ goalLocation = [0,0];           % Location of target.
 holeLocation = [125,175];        % Location of information void.
     
 navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
+
+
+
+
 
 %% Main body of simulation, loops over number of realisations.
 for iRepeat = 1:nRepeats
@@ -137,9 +143,17 @@ for iRepeat = 1:nRepeats
                     -position(closestAgent,1)+position(nextAgent,1));
             % Alignment mechanism.    
             elseif minDistance < alignDistance
-                bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);    % MLE of heading.
+                neighbourWeights = (1/nNeighbours) * ones(nNeighbours,1);                                           %SW: Need to check whether this is 
+                                                                                                                    % ok for non-fixed sensing range fields
+                bestGuessHeading = circ_mean([heading(neighbours); potentialHeading], ...
+                    [(1-alpha)*neighbourWeights; alpha]);                                                           % Weighted average of headings
+                %bestGuessHeading = circ_mean([heading(neighbours); potentinalHeading], [gamma(neighbours); gamma(nextAgent)]);
+                %bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);   % MLE of heading.
                 alphaLookup = [heading(neighbours);potentialHeading];                                               % Set of observed headings.
+                
+                
                 w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
+                % w_fix = [(1-beta)*ones(size(neighbours')); beta];
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
                 heading(nextAgent) = circ_vmrnd(bestGuessHeading,bestGuessStrength,1);                              % Set new heading.
@@ -161,7 +175,7 @@ for iRepeat = 1:nRepeats
         end
         
         % Determine which individuals have arrived at the target and remove
-        % from simulation.
+        % from simulation.?t
         removal = [];
         for i = 1:nIndividuals
             if sqrt((position(i,1)-goalLocation(1))^2+(position(i,2)-goalLocation(2))^2) < goalDistance
@@ -185,6 +199,18 @@ distanceToGoal = mean(distanceToGoal,2);                                    % Me
 meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
 meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
+
+ 
+fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
+savePath = 'reproduce_fig_2/csv_phi_fix_alpha01/';
+csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
+csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
+csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
+csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
+csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
+csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
+
+
 
 clear kappaCDF                                                              % Clear CDF to avoid saving over and over.
 
