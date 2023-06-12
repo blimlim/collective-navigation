@@ -40,13 +40,13 @@ domainWidth = 400;              % Width of the domain.
 domainHeight = 300;             % Height of the domain.    
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
-% tEnd = 1000;                    % End of simulation.
-% Double for changed concentration parameter estimation
-tEnd = 1000;
-alpha = 10/20;                  % Weighting of observations for heading calculation.
-beta = 90/100;                   % Weighting of observations for concentration calculation.
+tEnd = 1000;                    % End of simulation.
 
-gamma = (10/20) * ones(nIndividualsStart, 1);     % Individual social weightings for observations - between 0 and 1
+% Unused for individual weightings
+% alpha = 10/20;                  % Weighting of observations for heading calculation.
+%beta = 90/100;                   % Weighting of observations for concentration calculation.
+
+gamma = (70/100) * ones(nIndividualsStart, 1);     % Individual social weightings for observations - between 0 and 1
 
 sensingRange = 20;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
@@ -158,12 +158,12 @@ for iRepeat = 1:nRepeats
                 
                 neighbourWeights = (1-gamma(nextAgent))* (1/sum(gamma(neighbours))) * gamma(neighbours);
                 
-                bestGuessHeading = circ_mean([heading(neighbours); potentinalHeading],...
+                bestGuessHeading = circ_mean([heading(neighbours); potentialHeading],...
                     [neighbourWeights; gamma(nextAgent)]);
                 
                 % Original heading method in the code
                 %bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);   % MLE of heading.
-                %alphaLookup = [heading(neighbours);potentialHeading];                                               % Set of observed headings.
+                
                 
                 % Original weighting for concentration parameter
                 % w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
@@ -173,8 +173,9 @@ for iRepeat = 1:nRepeats
                 %w = [(1-beta)*ones(size(neighbours')); beta];
                 
                 % Concentration parameter using individual weightings
+                alphaLookup = [heading(neighbours);potentialHeading];                                               % Set of observed headings.
                 
-                w = 
+                w = [neighbourWeights; gamma(nextAgent)];
                 
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
@@ -224,7 +225,7 @@ nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Me
 
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../reproduce_fig_2/csv_kappa_fix_beta09/';
+savePath = '../individual_weighting_figures/initial/uniform_0.7/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
