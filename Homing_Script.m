@@ -23,6 +23,7 @@ meanDifferenceDirection = zeros(nSavePoints,nRepeats);          % Mean error in 
 nIndividualsRemaining = zeros(nSavePoints,nRepeats);            % Number of individuals remaining in the simulation (i.e. yet to arrive at goal).
 majorityGone = zeros(nRepeats,1);                               % Time for 90% of the individuals to arrive at the goal.
 
+concentrationParameters = zeros(nSavePoints, nRepeats);         % Store the average concentration parameter at each step
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -46,7 +47,7 @@ tEnd = 1000;                    % End of simulation.
 % alpha = 10/20;                  % Weighting of observations for heading calculation.
 %beta = 90/100;                   % Weighting of observations for concentration calculation.
 
-gamma = (70/100) * ones(nIndividualsStart, 1);     % Individual social weightings for observations - between 0 and 1
+gamma = (30/100) * ones(nIndividualsStart, 1);     % Individual social weightings for observations - between 0 and 1
 
 sensingRange = 20;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
@@ -91,13 +92,15 @@ for iRepeat = 1:nRepeats
     
     heading = zeros(nIndividuals,1);                                    % Headings of individuals.
     
+    concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals 
+    
     % Sample individual headings based on inherent information.
     for i = 1:nIndividuals
         heading(i) = circ_vmrnd(navigationField(position(i,1),position(i,2)), ...
             navigationStrengthField(position(i,1),position(i,2)),1);
     end
     
-    meanPosition = zeros(tEnd,2);                                       % Calculate mean position of the population
+    meanPosition = zeros(tEnd,2);                                       % Calculate mean position of the population - doesn't appear to be used
     tSave = linspace(0,tEnd,nSavePoints);                               % Time points where the data will be saved.   
     tSaveCount = 1;                                                     % Count of time points saved.
     totalStepCount = 0;                                                 % Number of steps taken.
@@ -180,6 +183,10 @@ for iRepeat = 1:nRepeats
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
                 heading(nextAgent) = circ_vmrnd(bestGuessHeading,bestGuessStrength,1);                              % Set new heading.
+                
+                % Store the agent's new concentration parameter
+                concentrationIndividual(nextAgent) = kappa;
+                
             % Attraction mechanism unused.
             elseif minDistance < attractDistance
                 heading(nextAgent) = atan2(mean(position(neighbours,2))-position(nextAgent,2),...
@@ -209,6 +216,7 @@ for iRepeat = 1:nRepeats
         position(removal,:) = [];                                           % Remove individuals from position.
         heading(removal) = [];                                              % Remove individuals from heading.
         timeToUpdate(removal) = [];                                         % Remove individuals from reorientation.
+        concentrationIndividual(removal) = [];                              % Remove individuals from concentration
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
     end
     
@@ -222,16 +230,17 @@ distanceToGoal = mean(distanceToGoal,2);                                    % Me
 meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
 meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
-
+concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../individual_weighting_figures/initial/uniform_0.7/';
+savePath = '../individual_weighting_figures/initial/uniform_0.3/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
 csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
 csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
 csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
+csvwrite(strcat(savePath, 'meanConcentration', fileTail), concentrationMean);
 
 
 
