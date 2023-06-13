@@ -10,7 +10,7 @@ close all
 nRepeats = 10;                                                  % Number of realisations of the model.
 %nSavePoints = 501;                                              % Number of time points to save model output.
 % Double for edited concentration mechanism
-nSavePoints = 1002;
+nSavePoints = 501;
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
 finalTime = zeros(nRepeats,1);                                  % Time for all individuals to arrive at the goal.
@@ -40,11 +40,10 @@ domainWidth = 400;              % Width of the domain.
 domainHeight = 300;             % Height of the domain.    
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
-% tEnd = 1000;                    % End of simulation.
-% Double for changed concentration parameter estimation
-tEnd = 2000;
-alpha = 10/20;                  % Weighting of observations for heading calculation.
-beta = 90/100;                   % Weighting of observations for concentration calculation.
+tEnd = 1000;                    % End of simulation.
+
+alpha = 50/100;                  % Weighting of observations for heading calculation.
+beta = 50/100;                   % Weighting of observations for concentration calculation.
 
 gamma = (10/20) * ones(nIndividualsStart, 1);     % Individual weightings for observations - between 0 and 1
 
@@ -150,20 +149,19 @@ for iRepeat = 1:nRepeats
             elseif minDistance < alignDistance
                 neighbourWeights = (1/nNeighbours) * ones(nNeighbours,1);                                           %SW: Need to check whether this is 
                 % Heading method based on paper                                                                     % ok for non-fixed sensing range fields
-                % bestGuessHeading = circ_mean([heading(neighbours); potentialHeading], ...
-                    %[(1-alpha)*neighbourWeights; alpha]);                                                           % Weighted average of headings
-                %bestGuessHeading = circ_mean([heading(neighbours); potentinalHeading], [gamma(neighbours); gamma(nextAgent)]);
+                bestGuessHeading = circ_mean([heading(neighbours); potentialHeading], ...
+                    [(1-alpha)*neighbourWeights; alpha]);                                                           % Weighted average of headings
                 
                 % Original heading method in the code
-                bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);   % MLE of heading.
+                % bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);   % MLE of heading.
                 alphaLookup = [heading(neighbours);potentialHeading];                                               % Set of observed headings.
                 
                 % Original weighting for concentration parameter
-                % w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
+                w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
                 
                 % Fixed weighting for concentration parameter based on
                 % paper description
-                w = [(1-beta)*ones(size(neighbours')); beta];
+                % w = [(1-beta)*ones(size(neighbours')); beta];
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
                 heading(nextAgent) = circ_vmrnd(bestGuessHeading,bestGuessStrength,1);                              % Set new heading.
@@ -212,7 +210,7 @@ nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Me
 
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../reproduce_fig_2/csv_kappa_fix_beta09/';
+savePath = '../reproduce_fig_2/csv_phi_fix_alphabeta_0.5/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
