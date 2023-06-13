@@ -22,6 +22,7 @@ distanceToGoal = zeros(nSavePoints,nRepeats);                   % Mean distance 
 meanDifferenceDirection = zeros(nSavePoints,nRepeats);          % Mean error in heading relative to target.
 nIndividualsRemaining = zeros(nSavePoints,nRepeats);            % Number of individuals remaining in the simulation (i.e. yet to arrive at goal).
 majorityGone = zeros(nRepeats,1);                               % Time for 90% of the individuals to arrive at the goal.
+concentrationParameters = zeros(nSavePoints, nRepeats);         % Store the average concentration parameter at each step
 
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
@@ -89,6 +90,7 @@ for iRepeat = 1:nRepeats
     timeToUpdate = turningTime;                                         % Calculate time until reorientation events.
     
     heading = zeros(nIndividuals,1);                                    % Headings of individuals.
+    concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals 
     
     % Sample individual headings based on inherent information.
     for i = 1:nIndividuals
@@ -165,6 +167,8 @@ for iRepeat = 1:nRepeats
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
                 heading(nextAgent) = circ_vmrnd(bestGuessHeading,bestGuessStrength,1);                              % Set new heading.
+                
+                concentrationIndividual(nextAgent) = kappa;
             % Attraction mechanism unused.
             elseif minDistance < attractDistance
                 heading(nextAgent) = atan2(mean(position(neighbours,2))-position(nextAgent,2),...
@@ -194,6 +198,7 @@ for iRepeat = 1:nRepeats
         position(removal,:) = [];                                           % Remove individuals from position.
         heading(removal) = [];                                              % Remove individuals from heading.
         timeToUpdate(removal) = [];                                         % Remove individuals from reorientation.
+        concentrationIndividual(removal) = [];                              % Remove individuals from concentration.
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
     end
     
@@ -207,6 +212,7 @@ distanceToGoal = mean(distanceToGoal,2);                                    % Me
 meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
 meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
+concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop.
 
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
@@ -217,6 +223,7 @@ csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
 csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
 csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
 csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
+csvwrite(strcat(savePath, 'meanConcentration', fileTail), concentrationMean);
 
 
 
