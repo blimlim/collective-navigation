@@ -9,6 +9,8 @@ clusterMeasure(tSaveCount,iRepeat) = sum(pairDistanceVec)/max((nIndividuals*(nIn
 nNeighbours = zeros(nIndividuals,1);                                        % Current number of observed neighbours.
 diffDirection = zeros(nIndividuals,1);                                      % Difference in direction between heading and target.
 
+concentrationParameters(tSaveCount,iRepeat) = mean(concentrationIndividual);
+
 % Loop over individuals
 for i = 1:nIndividuals
     
