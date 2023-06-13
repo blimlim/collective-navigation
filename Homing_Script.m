@@ -230,7 +230,7 @@ distanceToGoal = mean(distanceToGoal,2);                                    % Me
 meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
 meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
-concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop
+concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop.
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
 savePath = '../individual_weighting_figures/initial/uniform_0.3/';
