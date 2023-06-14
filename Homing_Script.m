@@ -24,6 +24,8 @@ nIndividualsRemaining = zeros(nSavePoints,nRepeats);            % Number of indi
 majorityGone = zeros(nRepeats,1);                               % Time for 90% of the individuals to arrive at the goal.
 
 concentrationParameters = zeros(nSavePoints, nRepeats);         % Store the average concentration parameter at each step
+                                                                
+                                                               
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -36,18 +38,31 @@ nHistDirection = 60;            % Number of points in histograms.
 directionHist = zeros(nHistDirection-1,1); %Predefine direction histogram.
 cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %Define colormap.
 
-nIndividualsStart = 100;        % Number of individuals in the simulation at start.
+
 domainWidth = 400;              % Width of the domain.
 domainHeight = 300;             % Height of the domain.    
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
 tEnd = 1000;                    % End of simulation.
 
-% Unused for individual weightings
-% alpha = 10/20;                  % Weighting of observations for heading calculation.
-%beta = 90/100;                   % Weighting of observations for concentration calculation.
+% Weightings between own information and observed neighbours
+alpha = 10/20;                  % Weighting of observations for heading calculation.
+beta = 10/20;                   % Weighting of observations for concentration calculation.
 
-gamma = (30/100) * ones(nIndividualsStart, 1);     % Individual social weightings for observations - between 0 and 1
+
+% Trustworthyness parameters for each individual
+% Form: gamma, number with that gamma
+populationStructure = [[0.9, 10]; [0.1, 90]];
+
+nIndividualsStatt = sum(populationStructure(:,2));
+
+gamma = [];
+for i = 1:size(populationStructure,1)
+    gamma = [gamma; populationStructure(i,1)*ones(populationStructure(i,2),1)];
+end
+
+
+nIndividualsStart = 100;        % Number of individuals in the simulation at start.
 
 sensingRange = 20;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
@@ -92,7 +107,9 @@ for iRepeat = 1:nRepeats
     
     heading = zeros(nIndividuals,1);                                    % Headings of individuals.
     
-    concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals 
+    concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals. 
+    
+    runGamma = gamma;                                                   % Copy of ]individual weightings from which agents can be dropped.
     
     % Sample individual headings based on inherent information.
     for i = 1:nIndividuals
@@ -150,35 +167,23 @@ for iRepeat = 1:nRepeats
                 heading(nextAgent) = atan2(-position(closestAgent,2)+position(nextAgent,2), ...
                     -position(closestAgent,1)+position(nextAgent,1));
             % Alignment mechanism.    
-            elseif minDistance < alignDistance
+            elseif minDistance < alignDistance                
+                % Heading estimatio with trustworthyness weightings applied
+                % to neighbours
+                weightedNeighbourHeading = circ_mean(heading(neighbours), runGamma(neighbours));
                 
-                neighbourWeights = (1/nNeighbours) * ones(nNeighbours,1);                                           
-                % Heading method based on paper                                                                    
-                %bestGuessHeading = circ_mean([heading(neighbours); potentialHeading], ...
-                    %[(1-alpha)*neighbourWeights; alpha]);                                                           % Weighted average of headings
+                bestGuessHeading = circ_mean([weightedNeighbourHeading;potentialHeading],[1-alpha;alpha]);   % MLE of heading.
                 
-                % Heading using individual weightings    
-                
-                neighbourWeights = (1-gamma(nextAgent))* (1/sum(gamma(neighbours))) * gamma(neighbours);
-                
-                bestGuessHeading = circ_mean([heading(neighbours); potentialHeading],...
-                    [neighbourWeights; gamma(nextAgent)]);
-                
-                % Original heading method in the code
-                %bestGuessHeading = circ_mean([circ_mean(heading(neighbours));potentialHeading],[1-alpha;alpha]);   % MLE of heading.
-                
+                % Individual weightings for concentration parameter
+                w = [(1-beta)*runGamma(neighbours); beta*sum(runGamma(neighbours))];
                 
                 % Original weighting for concentration parameter
-                % w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
-                
-                % Fixed weighting for concentration parameter based on
-                % paper description
-                %w = [(1-beta)*ones(size(neighbours')); beta];
+                %w = [(1-beta)*ones(size(neighbours'));beta*nNeighbours];                                            % Weighting of observed headings.
                 
                 % Concentration parameter using individual weightings
                 alphaLookup = [heading(neighbours);potentialHeading];                                               % Set of observed headings.
                 
-                w = [neighbourWeights; gamma(nextAgent)];
+                %w = [neighbourWeights; runGamma(nextAgent)];
                 
                 circ_kappa_script;                                                                                  % Calculate estimate of concentration parameter.
                 bestGuessStrength = kappa;                                                                          % Estimate of concentration parameter.
@@ -205,7 +210,7 @@ for iRepeat = 1:nRepeats
         end
         
         % Determine which individuals have arrived at the target and remove
-        % from simulation.?t
+        % from simulation.
         removal = [];
         for i = 1:nIndividuals
             if sqrt((position(i,1)-goalLocation(1))^2+(position(i,2)-goalLocation(2))^2) < goalDistance
@@ -216,7 +221,8 @@ for iRepeat = 1:nRepeats
         position(removal,:) = [];                                           % Remove individuals from position.
         heading(removal) = [];                                              % Remove individuals from heading.
         timeToUpdate(removal) = [];                                         % Remove individuals from reorientation.
-        concentrationIndividual(removal) = [];                              % Remove individuals from concentration
+        concentrationIndividual(removal) = [];                              % Remove individuals from concentration.
+        runGamma(removal) = [];                                                % Remove individuals from weightings.
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
     end
     
@@ -233,7 +239,7 @@ nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Me
 concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop.
  
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../individual_weighting_figures/initial/uniform_0.3/';
+savePath = '../individual_weighting_figures/initial/10_0.9_90_0.1/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
