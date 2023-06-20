@@ -51,20 +51,62 @@ beta = 10/20;                   % Weighting of observations for concentration ca
 
 
 % Trustworthyness parameters for each individual
-% Form: gamma, number with that gamma
-populationStructure = [[0.9, 10]; [0.1, 90]];
 
-nIndividualsStatt = sum(populationStructure(:,2));
+% Start with two classes, trustworthy (t) and untrustworthy (u).
+% Set gamma_t = 1, n_t = 100-n_u
 
+% We then have two parameters gamma_u in [0,1] and n_u in [0,nIndividualsStart]
+
+gamma_t = 1; % Don't change this 
+
+nIndividualsStart = 100;
+
+% Parameters to be varied
+n_u = 90;                                                                   % In [0, nIndividualsStart]
+gamma_u = 0.1;                                                              % In [0,1]
+
+
+
+% Set up the population
+n_t = nIndividualsStart - n_u;
+
+% Population structure, form: [gamma, number with that gamma] in each row.
+% Call each row a "class"
+populationStructure = [[gamma_t, n_t]; [gamma_u, n_u]];
+
+% Path for output csv's. 
+savePath = '../individual_weighting_figures/original_code_method/non_uniform/nu_90_gammau_0.1_v2/';
+
+% Column vector to track individual trustworthyness values.
 gamma = [];
 for i = 1:size(populationStructure,1)
     gamma = [gamma; populationStructure(i,1)*ones(populationStructure(i,2),1)];
 end
 
+% Check that I haven't done anything dumb here
+assert(length(gamma) == nIndividualsStart)
 
-nIndividualsStart = 100;        % Number of individuals in the simulation at start.
 
-sensingRange = 20;              % Perceptual range of individuals.
+% Add extra dimensions to the data saving arrays to store data for 
+% each class of individual
+numClasses = size(populationStructure, 1);
+
+% Page 1 = All individuals, Page 2 = class 1, ..., Page N+1 = class N
+for i =  2:numClasses+1
+    finalTime(:,i) = 0;
+    xPosition(:,:,i) = 0;
+    yPosition(:,:, i) = 0;
+    meanNeighbours(:,:, i) = 0;
+    distanceToGoal(:,:, i) = 0;
+    meanDifferenceDirection(:,:, i) = 0;
+    nIndividualsRemaining(:,:, i) = 0;
+    majorityGone(:, i) = 0;
+    directionHist(:, i) = 0;
+    concentrationParameters(:,:, i) = 0;
+end
+
+
+sensingRange = 500;             % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -84,7 +126,7 @@ navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Di
 
 %% Main body of simulation, loops over number of realisations.
 for iRepeat = 1:nRepeats
-    majorityCheck = 0;                      % Check if 90% of population has arrived at the target.
+    majorityCheck = zeros(1 + numClasses);                      % Check if 90% of population has arrived at the target.
     iRepeat                                 % Print the realisation.
 
     nIndividuals = nIndividualsStart;       % Number of indivuduals in the simulation.
@@ -109,7 +151,7 @@ for iRepeat = 1:nRepeats
     
     concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals. 
     
-    runGamma = gamma;                                                   % Copy of ]individual weightings from which agents can be dropped.
+    runGamma = gamma;                                                   % Copy of individual weightings from which agents can be dropped.
     
     % Sample individual headings based on inherent information.
     for i = 1:nIndividuals
@@ -222,7 +264,7 @@ for iRepeat = 1:nRepeats
         heading(removal) = [];                                              % Remove individuals from heading.
         timeToUpdate(removal) = [];                                         % Remove individuals from reorientation.
         concentrationIndividual(removal) = [];                              % Remove individuals from concentration.
-        runGamma(removal) = [];                                                % Remove individuals from weightings.
+        runGamma(removal) = [];                                             % Remove individuals from weightings.
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
     end
     
@@ -230,23 +272,71 @@ for iRepeat = 1:nRepeats
     
 end
 
-xPositionMean = mean(xPosition,2);                                          % Mean of average x position across realisation loop.
+% Calculate the means over the realisations for each variable.
+
+% Non segmented variables
 clusterMeasure = mean(clusterMeasure,2);                                    % Mean of clustering across realisation loop.
-distanceToGoal = mean(distanceToGoal,2);                                    % Mean of average distance to goal across realisation loop.
-meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
-meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
-nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
-concentrationMean = mean(concentrationParameters, 2);                       % Mean of the concentration parameters over realisation loop.
+
+% Segmented variables, i.e. we have data separated for each class.
+% First page = all agents, page 2 = class 1, ...
+xPositionMean = squeeze(mean(xPosition,2));                                          % Mean of average x position across realisation loop.
+distanceToGoal = squeeze(mean(distanceToGoal,2));                                    % Mean of average distance to goal across realisation loop.
+meanNeighbours = squeeze(mean(meanNeighbours,2));                                    % Mean of average number of neighbours across realisation loop.
+meanDifferenceDirection = squeeze(mean(meanDifferenceDirection,2));                  % Mean of difference between heading and target across realisation loop.
+nIndividualsRemaining = squeeze(mean(nIndividualsRemaining,2));                      % Mean of number individuals remaining across realisation loop.
+concentrationMean = squeeze(mean(concentrationParameters, 2));                       % Mean of the concentration parameters over realisation loop.
  
-fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../individual_weighting_figures/initial/10_0.9_90_0.1/';
-csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
+% Save the gamma values as the first row of each multi gamma dataset
+row0 = [0, populationStructure(:,1)'];
+
+xPositionMean = [row0; xPositionMean];
+distanceToGoal = [row0; distanceToGoal];
+meanNeighbours = [row0; meanNeighbours];
+meanDifferenceDirection = [row0; meanDifferenceDirection];
+nIndividualsRemaining = [row0; nIndividualsRemaining];
+concentrationMean = [row0; concentrationMean];
+
+
+% Save the data into tables then into CSV's.
+% First get rid of singleton dimension, and turn into a table
+xPositionMean = array2table(xPositionMean);
+distanceToGoal = array2table(distanceToGoal);
+meanNeighbours = array2table(meanNeighbours);
+meanDifferenceDirection = array2table(meanDifferenceDirection);
+nIndividualsRemaining = array2table(nIndividualsRemaining);
+concentrationMean = array2table(concentrationMean);
+
+% Add the column names - describe which agents each column refers to
+colnames = cell(numClasses + 1,1);
+colnames(1) = {char("all")};
+
+
+
+
+for i = 1:numClasses
+    page = i + 1;
+    colnames(page) = {char(sprintf("gamma_%d%",i))};
+end
+
+% Add the column names to the tables 
+
+xPositionMean.Properties.VariableNames = colnames;
+distanceToGoal.Properties.VariableNames = colnames; 
+meanNeighbours.Properties.VariableNames = colnames;
+meanDifferenceDirection.Properties.VariableNames = colnames; 
+nIndividualsRemaining.Properties.VariableNames = colnames; 
+concentrationMean.Properties.VariableNames = colnames;
+
+% Save each variable to a csv
+fileTail = sprintf('_range_%d.csv', sensingRange);   % SW: Keep track of range parameter and population structure for saved data
+writetable(xPositionMean, strcat(savePath, 'xPosition', fileTail));  
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
-csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
-csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
-csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
-csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
-csvwrite(strcat(savePath, 'meanConcentration', fileTail), concentrationMean);
+writetable(distanceToGoal, strcat(savePath, 'distanceToGoal', fileTail));
+writetable(meanNeighbours, strcat(savePath, 'meanNeighbours', fileTail));
+writetable(meanDifferenceDirection, strcat(savePath, 'meanDifferenceDirection', fileTail));
+writetable(nIndividualsRemaining, strcat(savePath, 'nIndividualsRemaining', fileTail));
+writetable(concentrationMean, strcat(savePath, 'meanConcentration', fileTail));
+
 
 
 
