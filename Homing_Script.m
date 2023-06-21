@@ -43,7 +43,7 @@ tEnd = 1000;                    % End of simulation.
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
-sensingRange = 20;              % Perceptual range of individuals.
+sensingRange = 0;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -185,6 +185,20 @@ distanceToGoal = mean(distanceToGoal,2);                                    % Me
 meanNeighbours = mean(meanNeighbours,2);                                    % Mean of average number of neighbours across realisation loop.
 meanDifferenceDirection = mean(meanDifferenceDirection,2);                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Mean of number individuals remaining across realisation loop.
+
+
+% Save the data
+fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
+savePath = '../reproduce_fig_2/csv_r3/';
+csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
+csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
+csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
+csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
+csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
+csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
+csvwrite(strcat(savePath, 'direction_Histogram', fileTail), directionHist);
+
+
 
 clear kappaCDF                                                              % Clear CDF to avoid saving over and over.
 
