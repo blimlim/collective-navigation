@@ -7,4 +7,4 @@ figure(6); hold on; plot(tSave,(meanNeighbours.all(2:end))./nIndividualsRemainin
 figure(7); hold on; plot(tSave,meanNeighbours.all(2:end)); title('Average Neighbours'); xlabel('Time'); ylabel('Average Neighbours'); box on;
 figure(8); hold on; plot(tSave,nIndividualsRemaining.all(2:end)/nIndividualsStart); title('Proportion of Individuals Remaining'); xlabel('Time'); ylabel('Proportion of Individuals Remaining'); box on;
 figure(9); hold on; plot(tSave,nIndividualsRemaining.all(2:end)); title('Number of Individuals Remaining'); xlabel('Time'); ylabel('Number of Individuals Remaining'); box on;
-figure(10); hold on; plot(linspace(-pi,pi,nHistDirection-1),directionHist(:,1)'/sum(sum(directionHist(:,1)))); xlim([-pi pi]);  title('Distribution of Angles'); xlabel('Angle'); ylabel('Frequency'); box on;
+figure(10); hold on; plot(linspace(-pi,pi,nHistDirection-1),directionHist.all(2:end)'/sum(sum(directionHist.all(2:end)))); xlim([-pi pi]);  title('Distribution of Angles'); xlabel('Angle'); ylabel('Frequency'); box on;

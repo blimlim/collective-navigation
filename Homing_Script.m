@@ -105,8 +105,7 @@ for i =  2:numClasses+1
     concentrationParameters(:,:, i) = 0;
 end
 
-
-sensingRange = 500;             % Perceptual range of individuals.
+sensingRange = 20;             % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -285,7 +284,8 @@ meanNeighbours = squeeze(mean(meanNeighbours,2));                               
 meanDifferenceDirection = squeeze(mean(meanDifferenceDirection,2));                  % Mean of difference between heading and target across realisation loop.
 nIndividualsRemaining = squeeze(mean(nIndividualsRemaining,2));                      % Mean of number individuals remaining across realisation loop.
 concentrationMean = squeeze(mean(concentrationParameters, 2));                       % Mean of the concentration parameters over realisation loop.
- 
+majorityGoneMean = mean(majorityGone, 1); 
+
 % Save the gamma values as the first row of each multi gamma dataset
 row0 = [0, populationStructure(:,1)'];
 
@@ -295,6 +295,9 @@ meanNeighbours = [row0; meanNeighbours];
 meanDifferenceDirection = [row0; meanDifferenceDirection];
 nIndividualsRemaining = [row0; nIndividualsRemaining];
 concentrationMean = [row0; concentrationMean];
+directionHist = [row0; directionHist];
+majorityGoneMean = [row0; majorityGoneMean];
+
 
 
 % Save the data into tables then into CSV's.
@@ -305,10 +308,14 @@ meanNeighbours = array2table(meanNeighbours);
 meanDifferenceDirection = array2table(meanDifferenceDirection);
 nIndividualsRemaining = array2table(nIndividualsRemaining);
 concentrationMean = array2table(concentrationMean);
+directionHist = array2table(directionHist);
+majorityGoneMean = array2table(majorityGoneMean);
+
 
 % Add the column names - describe which agents each column refers to
 colnames = cell(numClasses + 1,1);
 colnames(1) = {char("all")};
+
 
 
 
@@ -326,6 +333,8 @@ meanNeighbours.Properties.VariableNames = colnames;
 meanDifferenceDirection.Properties.VariableNames = colnames; 
 nIndividualsRemaining.Properties.VariableNames = colnames; 
 concentrationMean.Properties.VariableNames = colnames;
+directionHist.Properties.VariableNames = colnames;
+majorityGoneMean.Properties.VariableNames = colnames;
 
 % Save each variable to a csv
 fileTail = sprintf('_range_%d.csv', sensingRange);   % SW: Keep track of range parameter and population structure for saved data
@@ -336,6 +345,8 @@ writetable(meanNeighbours, strcat(savePath, 'meanNeighbours', fileTail));
 writetable(meanDifferenceDirection, strcat(savePath, 'meanDifferenceDirection', fileTail));
 writetable(nIndividualsRemaining, strcat(savePath, 'nIndividualsRemaining', fileTail));
 writetable(concentrationMean, strcat(savePath, 'meanConcentration', fileTail));
+writetable(directionHist, strcat(savePath, 'directionHist', fileTail));
+writetable(majorityGoneMean, strcat(savePath, 'meanMajorityGone', fileTail));
 
 
 
