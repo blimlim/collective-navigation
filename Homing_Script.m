@@ -4,6 +4,9 @@
 %% requires the look-up table for the concentration parameter, which can found
 %% at https://melbourne.figshare.com/articles/dataset/kappaCDFLookupTable_mat/14551614.
 
+%% This version has individual trustworthiness parameters and individual navigation skill
+%% (which for now only works with the fixe information field)
+
 clear all
 close all
 
