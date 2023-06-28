@@ -105,7 +105,7 @@ for i =  2:numClasses+1
     concentrationParameters(:,:, i) = 0;
 end
 
-sensingRange = 20;             % Perceptual range of individuals.
+sensingRange = 500;             % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
