@@ -41,15 +41,14 @@ end
 % individuals
 % Recall: % Page 1 = All individuals, Page 2 = class 1, ..., Page N+1 = class N
 
-for class = 1:numClasses
-    page = class + 1;
-    classGamma = populationStructure(class, 1);
-    agentsInClass = find(runGamma == classGamma);                          % Indices of remaining agents within the current class.
+for classidx = 1:numClasses
+    page = classidx + 1;
+    agentsInClass = find(runClass == classidx);                           % Indices of remaining agents within the current class.
     numInClass = numel(agentsInClass);
     
     
     % Check if 90% of individals in the current class have arrived at target and if so, store time.
-    if numInClass/populationStructure(class, 2) <= 0.1 && majorityCheck(page) == 0              
+    if numInClass/populationStructure(classidx, 4) <= 0.1 && majorityCheck(page) == 0              
         majorityGone(iRepeat, page) = t;
         majorityCheck(page) = 1;
     end

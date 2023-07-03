@@ -16,6 +16,9 @@ nRepeats = 10;                                                  % Number of real
 nSavePoints = 501;
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
+% Path for output csv's. 
+savePath = '../skill_classes/uniform_trust_uniform_skill/';
+
 finalTime = zeros(nRepeats,1);                                  % Time for all individuals to arrive at the goal.
 xPosition = zeros(nSavePoints,nRepeats);                        % Mean position (x) of the population.
 yPosition = zeros(nSavePoints,nRepeats);                        % Mean position (y) of the population.
@@ -60,30 +63,45 @@ beta = 10/20;                   % Weighting of observations for concentration ca
 
 % We then have two parameters gamma_u in [0,1] and n_u in [0,nIndividualsStart]
 
-gamma_t = 1; % Don't change this 
+
+
+%% Initially: Uniform trustworthyness, two classes of navigation skill
+
+
+% New population structure
+% [[class 1 ID, class 1 gamma, class 1 kappa, class 1 n]; 
+% [class 2 ID, class 2 gamma, class 2 kappa, class 2 n]]
+
+gamma_1 = 1; % Don't change this 
+
+kappa_1 = 1; % Higher inherent navigation skill
 
 nIndividualsStart = 100;
+n_1 = 20; % Not many individuals
 
-% Parameters to be varied
-n_u = 90;                                                                   % In [0, nIndividualsStart]
-gamma_u = 0.1;                                                              % In [0,1]
+delta = n_1/nIndividualsStart; % Class 1 population fraction
+
+% Solve for class 2 parameters
+gamma_2 = 1; % Uniform trustworthiness
+n_2 = nIndividualsStart - n_1;
+
+kappa_2 = 1;
+%[kappa_2, err] = solveSkill(delta, kappa_1); % Solve for kappa_2 which maintains average individual velocity towards target
+%err
+populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
 
 
+% Set up vectors to keep track of individual's class, trustworthyness, and
+% individual skill during the runs
 
-% Set up the population
-n_t = nIndividualsStart - n_u;
+classes = [];                                                               % Class.
+gamma = [];                                                                 % Trustworthiness values.
+individual_kappas = [];                                                     % Navigation skills.
 
-% Population structure, form: [gamma, number with that gamma] in each row.
-% Call each row a "class"
-populationStructure = [[gamma_t, n_t]; [gamma_u, n_u]];
-
-% Path for output csv's. 
-savePath = '../individual_weighting_figures/original_code_method/non_uniform/nu_90_gammau_0.1_v2/';
-
-% Column vector to track individual trustworthyness values.
-gamma = [];
 for i = 1:size(populationStructure,1)
-    gamma = [gamma; populationStructure(i,1)*ones(populationStructure(i,2),1)];
+    classes = [classes; populationStructure(i,1) * ones(populationStructure(i,4),1)];
+    gamma = [gamma; populationStructure(i,2) * ones(populationStructure(i,4),1)];
+    individual_kappas = [individual_kappas; populationStructure(i,3) * ones(populationStructure(i,4),1)];
 end
 
 % Check that I haven't done anything dumb here
@@ -95,7 +113,7 @@ assert(length(gamma) == nIndividualsStart)
 numClasses = size(populationStructure, 1);
 
 % Page 1 = All individuals, Page 2 = class 1, ..., Page N+1 = class N
-for i =  2:numClasses+1
+for i = 2:numClasses+1
     finalTime(:,i) = 0;
     xPosition(:,:,i) = 0;
     yPosition(:,:, i) = 0;
@@ -154,11 +172,13 @@ for iRepeat = 1:nRepeats
     concentrationIndividual = zeros(nIndividuals,1);                    % Concentration parameter of individuals. 
     
     runGamma = gamma;                                                   % Copy of individual weightings from which agents can be dropped.
+    runKappa = individual_kappas;                                       % Navigation skill of individuals.
+    runClass = classes;                                                   % Class (gamma and kappa) for each individual.
     
-    % Sample individual headings based on inherent information.
+    % Sample individual headings based on individual navigation skill
     for i = 1:nIndividuals
         heading(i) = circ_vmrnd(navigationField(position(i,1),position(i,2)), ...
-            navigationStrengthField(position(i,1),position(i,2)),1);
+            individual_kappas(i),1);
     end
     
     meanPosition = zeros(tEnd,2);                                       % Calculate mean position of the population - doesn't appear to be used
@@ -199,9 +219,10 @@ for iRepeat = 1:nRepeats
         [minDistance,closestAgent] = min(pairDistances(nextAgent,:));   % Find closest agent.
         oldHeading = heading;                                           % Retain previous heading.
         
-        % Calculate sample heading based on inherent information only.
+        % Calculate sample heading based on inherent information/individual
+        % skill only.
         potentialHeading = circ_vmrnd(navigationField(position(nextAgent,1),position(nextAgent,2)),...
-            navigationStrengthField(position(nextAgent,1),position(nextAgent,2)),1);
+            individual_kappas(nextAgent),1);
         
         % Update heading based on other observed individuals if number of
         % neighbours exceeds zero.
@@ -267,7 +288,10 @@ for iRepeat = 1:nRepeats
         timeToUpdate(removal) = [];                                         % Remove individuals from reorientation.
         concentrationIndividual(removal) = [];                              % Remove individuals from concentration.
         runGamma(removal) = [];                                             % Remove individuals from weightings.
+        runClass(removal) = [];                                             % Remove individuals from classes.
+        runKappa(removal) = [];                                             % Remove individuals from navigation skills.
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
+        
     end
     
     finalTime(iRepeat) = t;                                                 % Final time in the simulation.
@@ -289,19 +313,18 @@ nIndividualsRemaining = squeeze(mean(nIndividualsRemaining,2));                 
 concentrationMean = squeeze(mean(concentrationParameters, 2));                       % Mean of the concentration parameters over realisation loop.
 majorityGoneMean = mean(majorityGone, 1); 
 
-% Save the gamma values as the first row of each multi gamma dataset
-row0 = [0, populationStructure(:,1)'];
+% Add in first two rows stating the gamma and kappa values for each column.
+row0 = [0, populationStructure(:,2)'];                                       % Gamma values
+row1 = [0, populationStructure(:,3)'];                                       % Kappa values
 
-xPositionMean = [row0; xPositionMean];
-distanceToGoal = [row0; distanceToGoal];
-meanNeighbours = [row0; meanNeighbours];
-meanDifferenceDirection = [row0; meanDifferenceDirection];
-nIndividualsRemaining = [row0; nIndividualsRemaining];
-concentrationMean = [row0; concentrationMean];
-directionHist = [row0; directionHist];
-majorityGoneMean = [row0; majorityGoneMean];
-
-
+xPositionMean = [row0; row1; xPositionMean];
+distanceToGoal = [row0; row1; distanceToGoal];
+meanNeighbours = [row0; row1; meanNeighbours];
+meanDifferenceDirection = [row0; row1; meanDifferenceDirection];
+nIndividualsRemaining = [row0; row1; nIndividualsRemaining];
+concentrationMean = [row0; row1; concentrationMean];
+majorityGoneMean = [row0; row1; majorityGoneMean];
+directionHist = [row0; row1; directionHist];
 
 % Save the data into tables then into CSV's.
 % First get rid of singleton dimension, and turn into a table
@@ -325,7 +348,7 @@ colnames(1) = {char("all")};
 
 for i = 1:numClasses
     page = i + 1;
-    colnames(page) = {char(sprintf("gamma_%d%",i))};
+    colnames(page) = {char(sprintf("class_%d",populationStructure(i, 1)))};
 end
 
 % Add the column names to the tables 
@@ -340,7 +363,9 @@ directionHist.Properties.VariableNames = colnames;
 majorityGoneMean.Properties.VariableNames = colnames;
 
 % Save each variable to a csv
-fileTail = sprintf('_range_%d.csv', sensingRange);   % SW: Keep track of range parameter and population structure for saved data
+fileTail = sprintf('_range_%d_g%.2fk%.3fn%d_g%.2fk%.3fn%d.csv', ...
+    sensingRange, populationStructure(1,2),populationStructure(1,3),populationStructure(1,4), ...
+    populationStructure(2,2),populationStructure(2,3),populationStructure(2,4));   % SW: Keep track of range parameter and population structure for saved data
 writetable(xPositionMean, strcat(savePath, 'xPosition', fileTail));  
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 writetable(distanceToGoal, strcat(savePath, 'distanceToGoal', fileTail));
