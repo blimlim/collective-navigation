@@ -17,7 +17,7 @@ nSavePoints = 501;
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
 % Path for output csv's. 
-savePath = '../skill_classes/uniform_trust_uniform_skill/';
+savePath = '../skill_classes/g1k0.1n55_g1k7.5227n45/';
 
 finalTime = zeros(nRepeats,1);                                  % Time for all individuals to arrive at the goal.
 xPosition = zeros(nSavePoints,nRepeats);                        % Mean position (x) of the population.
@@ -74,10 +74,10 @@ beta = 10/20;                   % Weighting of observations for concentration ca
 
 gamma_1 = 1; % Don't change this 
 
-kappa_1 = 1; % Higher inherent navigation skill
+kappa_1 = 0.1; % Modified inherent navigation skill
 
 nIndividualsStart = 100;
-n_1 = 20; % Not many individuals
+n_1 = 55;       % Number of individuals in class 1
 
 delta = n_1/nIndividualsStart; % Class 1 population fraction
 
@@ -85,9 +85,9 @@ delta = n_1/nIndividualsStart; % Class 1 population fraction
 gamma_2 = 1; % Uniform trustworthiness
 n_2 = nIndividualsStart - n_1;
 
-kappa_2 = 1;
-%[kappa_2, err] = solveSkill(delta, kappa_1); % Solve for kappa_2 which maintains average individual velocity towards target
-%err
+
+[kappa_2, err] = solveSkill(delta, kappa_1); % Solve for kappa_2 which maintains average individual velocity towards target
+err
 populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
 
 
