@@ -55,6 +55,20 @@ tEnd = 1000;                    % End of simulation.
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
+sensingRange = 500;             % Perceptual range of individuals.
+backgroundStrength = 1;         % Background information level.
+repulsionDistance = 0;          % Repulsion mechanism (unused).
+alignDistance = sensingRange;   % Alignment distance (always = sensing range).
+attractDistance = sensingRange; % Attraction mechanism (unused).
+
+goalDistance = 10;              % Distance from goal to be counted as "arrived".
+noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
+    
+goalLocation = [0,0];           % Location of target.
+holeLocation = [125,175];        % Location of information void.
+    
+navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
+
 
 % Trustworthyness parameters for each individual
 
@@ -126,19 +140,7 @@ for i = 2:numClasses+1
     concentrationParameters(:,:, i) = 0;
 end
 
-sensingRange = 500;             % Perceptual range of individuals.
-backgroundStrength = 1;         % Background information level.
-repulsionDistance = 0;          % Repulsion mechanism (unused).
-alignDistance = sensingRange;   % Alignment distance (always = sensing range).
-attractDistance = sensingRange; % Attraction mechanism (unused).
 
-goalDistance = 10;              % Distance from goal to be counted as "arrived".
-noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
-    
-goalLocation = [0,0];           % Location of target.
-holeLocation = [125,175];        % Location of information void.
-    
-navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
 
 
@@ -159,10 +161,9 @@ for iRepeat = 1:nRepeats
     initialPosition(:,2) = -20+40*rand(nIndividuals,1);                 % Initial position (y) of individuals.
     initialPosition(:,1) = domainWidth-120+40*rand(nIndividuals,1);     % Initial position (x) of individuals.
     position = initialPosition;                                         % Position of individuals.
-    pairDistances = zeros(nIndividuals);                                
+    %pairDistances = zeros(nIndividuals);                                
     pairDistanceVec = pdist(position);                                  % Calculate distances between all pairs of individuals.
-    pairDistances(triu(ones(nIndividuals)==1,1)) = pairDistanceVec;     % Set pair distances for i =/= j.
-    pairDistances(tril(ones(nIndividuals)==1,-1)) = pairDistanceVec;    % Set pair distances for i =/= j.
+    pairDistances = squareform(pairDistanceVec);                        % Pair distance matrix
     
     turningTime = exprnd(runTime,nIndividuals,1);                       % Calculate durations of run events.
     timeToUpdate = turningTime;                                         % Calculate time until reorientation events.
