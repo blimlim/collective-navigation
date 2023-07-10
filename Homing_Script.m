@@ -74,8 +74,11 @@ for iRepeat = 1:nRepeats
     position = initialPosition;                                         % Position of individuals.
     pairDistances = zeros(nIndividuals);                                
     pairDistanceVec = pdist(position);                                  % Calculate distances between all pairs of individuals.
-    pairDistances(triu(ones(nIndividuals)==1,1)) = pairDistanceVec;     % Set pair distances for i =/= j.
-    pairDistances(tril(ones(nIndividuals)==1,-1)) = pairDistanceVec;    % Set pair distances for i =/= j.
+    pairDistances = squareform(pairDistanceVec);                        % Pair distance matrix
+    
+    % Old method: 
+    %pairDistances(triu(ones(nIndividuals)==1,1)) = pairDistanceVec;     % Set pair distances for i =/= j.
+    %pairDistances(tril(ones(nIndividuals)==1,-1)) = pairDistanceVec;    % Set pair distances for i =/= j.
     
     turningTime = exprnd(runTime,nIndividuals,1);                       % Calculate durations of run events.
     timeToUpdate = turningTime;                                         % Calculate time until reorientation events.
@@ -189,7 +192,7 @@ nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Me
 
 % Save the data
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../reproduce_fig_2/csv_r3/';
+savePath = '../reproduce_fig_2/csv_pairdist_fixed/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
