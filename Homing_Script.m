@@ -43,7 +43,7 @@ tEnd = 1000;                    % End of simulation.
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
-sensingRange = 0;              % Perceptual range of individuals.
+sensingRange = 500;              % Perceptual range of individuals.
 backgroundStrength = 1;         % Background information level.
 repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -72,7 +72,7 @@ for iRepeat = 1:nRepeats
     initialPosition(:,2) = -20+40*rand(nIndividuals,1);                 % Initial position (y) of individuals.
     initialPosition(:,1) = domainWidth-120+40*rand(nIndividuals,1);     % Initial position (x) of individuals.
     position = initialPosition;                                         % Position of individuals.
-    pairDistances = zeros(nIndividuals);                                
+    %pairDistances = zeros(nIndividuals);                                
     pairDistanceVec = pdist(position);                                  % Calculate distances between all pairs of individuals.
     pairDistances = squareform(pairDistanceVec);                        % Pair distance matrix
     
