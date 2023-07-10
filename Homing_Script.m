@@ -159,10 +159,9 @@ for iRepeat = 1:nRepeats
     initialPosition(:,2) = -20+40*rand(nIndividuals,1);                 % Initial position (y) of individuals.
     initialPosition(:,1) = domainWidth-120+40*rand(nIndividuals,1);     % Initial position (x) of individuals.
     position = initialPosition;                                         % Position of individuals.
-    pairDistances = zeros(nIndividuals);                                
+    %pairDistances = zeros(nIndividuals);                                
     pairDistanceVec = pdist(position);                                  % Calculate distances between all pairs of individuals.
-    pairDistances(triu(ones(nIndividuals)==1,1)) = pairDistanceVec;     % Set pair distances for i =/= j.
-    pairDistances(tril(ones(nIndividuals)==1,-1)) = pairDistanceVec;    % Set pair distances for i =/= j.
+    pairDistances = squareform(pairDistanceVec);                        % Pair distance matrix
     
     turningTime = exprnd(runTime,nIndividuals,1);                       % Calculate durations of run events.
     timeToUpdate = turningTime;                                         % Calculate time until reorientation events.
