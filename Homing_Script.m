@@ -17,7 +17,7 @@ nSavePoints = 501;
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
 % Path for output csv's. 
-savePath = '../skill_classes/g1k0.1n55_g1k7.5227n45/';
+savePath = '../skill_classes/pairdist_fixed/g1k0.1n55_g1k7.5227n45/';
 
 finalTime = zeros(nRepeats,1);                                  % Time for all individuals to arrive at the goal.
 xPosition = zeros(nSavePoints,nRepeats);                        % Mean position (x) of the population.
@@ -55,17 +55,25 @@ tEnd = 1000;                    % End of simulation.
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
+sensingRange = 5;             % Perceptual range of individuals.
+backgroundStrength = 1;         % Background information level.
+repulsionDistance = 0;          % Repulsion mechanism (unused).
+alignDistance = sensingRange;   % Alignment distance (always = sensing range).
+attractDistance = sensingRange; % Attraction mechanism (unused).
 
-% Trustworthyness parameters for each individual
+goalDistance = 10;              % Distance from goal to be counted as "arrived".
+noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
+    
+goalLocation = [0,0];           % Location of target.
+holeLocation = [125,175];        % Location of information void.
+    
+navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
-% Start with two classes, trustworthy (t) and untrustworthy (u).
-% Set gamma_t = 1, n_t = 100-n_u
-
-% We then have two parameters gamma_u in [0,1] and n_u in [0,nIndividualsStart]
 
 
+%% Population structure 
 
-%% Initially: Uniform trustworthyness, two classes of navigation skill
+% Initially: Uniform trustworthyness, two classes of navigation skill
 
 
 % New population structure
@@ -125,20 +133,6 @@ for i = 2:numClasses+1
     directionHist(:, i) = 0;
     concentrationParameters(:,:, i) = 0;
 end
-
-sensingRange = 500;             % Perceptual range of individuals.
-backgroundStrength = 1;         % Background information level.
-repulsionDistance = 0;          % Repulsion mechanism (unused).
-alignDistance = sensingRange;   % Alignment distance (always = sensing range).
-attractDistance = sensingRange; % Attraction mechanism (unused).
-
-goalDistance = 10;              % Distance from goal to be counted as "arrived".
-noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
-    
-goalLocation = [0,0];           % Location of target.
-holeLocation = [125,175];        % Location of information void.
-    
-navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
 
 
