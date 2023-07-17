@@ -19,7 +19,7 @@ nSavePoints = 501;                                              % Number of time
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
 % Path for output csv's. 
-savePath = '../cooperative/g1k0.5n50_g1k1.7408n50_coop_target/';
+savePath = '../cooperative/g1k0.5n50_g1k1.7408n50_coop_target_fixed/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -286,6 +286,8 @@ for iRepeat = 1:nRepeats
             agentDistToTarget = sqrt((position(nextAgent,1) - goalLocation(1))^2 + (position(nextAgent,2) - goalLocation(2))^2);
             if agentDistToTarget < sensingRange
                 arrivedNeighbours = 1:length(arrivedIDs);            % If agent within sensing range of target, all arrived agents are neighbours
+                minDistance = min([minDistance, agentDistToTarget]);  % Update min distance if close to goal. minDistance controls if cooperative navigation is used
+                                                                      % Not including this line was the reason for the single agent remaining oscilation bug.
             end
         end
         

@@ -25,7 +25,7 @@ diffDirection = zeros(nIndividuals,1);                                      % Di
 concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); % Average concentration parameter at last reorientation
 
 % Distances between navigating and arrived individuals.
-if cooperative == true &&  ~(isempty(arrivedPosition))
+if cooperative ~= "off" &&  ~(isempty(arrivedPosition))
     arrivedDistances = pdist2(position, arrivedPosition);
     % row i col j = dist from navigating whale i to arrived whale j
 end
@@ -38,7 +38,7 @@ for i = 1:nIndividuals
     
     nNeighboursIncArrived(i) = nNeighbours(i); % If cooperative == false, only count actively navigating neighbours, as they are the 
                                                % ones used in reorientation
-    if cooperative == true && ~(isempty(arrivedPosition))
+    if cooperative ~= "off" && ~(isempty(arrivedPosition))
         arrivedNeighbours = find(arrivedDistances(i, :) < sensingRangeField(position(i,1),position(i,2)));
         nNeighboursIncArrived(i) = numel(arrivedNeighbours) + nNeighbours(i);
     end
