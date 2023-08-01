@@ -5,22 +5,25 @@
 %% at https://melbourne.figshare.com/articles/dataset/kappaCDFLookupTable_mat/14551614.
 
 %% This version has individual trustworthiness parameters and individual navigation skill
-%% (which for now only works with the fixe information field)
+%% (which for now only works with the fixed information field)
 
 clear all
 close all
 
 % Loop over sensing ranges
-%for sensingRange = [0, 5, 10, 20, 50, 500]
-for sensingRange = [20, 50]
+% for sensingRange = [0, 5, 10, 20, 50, 500]
+
+for sensingRange = [10]
 sensingRange
 %% User settings
-nRepeats = 10;                                                  % Number of realisations of the model.
+nRepeats = 1;                                                  % Number of realisations of the model.
 nSavePoints = 501;                                              % Number of time points to save model output.
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
+startDist = 750;
+
 % Path for output csv's. 
-savePath = '../cooperative/g1k0.5n50_g1k1.7408n50_coop_target_neighbourtest_v3/';
+savePath = '../cooperative/neighbour_tracking_tests/nneighbourdebug/coop_off/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -38,7 +41,13 @@ domainHeight = 300;             % Height of the domain.
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
 tChunkSize = 1000;                  % Size of chunks to break data into
-%tEnd = tChunk;
+
+limitRun = false;                % If true, force the run to stop once t > tEnd.
+                                 % If false, run will continue until all
+                                 % individuals arive (may take a long time
+                                 % depending on population).
+
+tEnd = 2000;                     % Only used if limitRun == true.
 
 % Weightings between own information and observed neighbours
 alpha = 10/20;                  % Weighting of observations for heading calculation.
@@ -52,7 +61,7 @@ holeLocation = [125,175];       % Location of information void.
     
 navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
-cooperative = "target";    % Controls whether arrived whales stay in simulation and signal location.
+cooperative = "off";    % Controls whether arrived whales stay in simulation and signal location.
                                 % cooperative = "off":
                                 %     individuals which arrive at target
                                 %     are removed from the simulation.
@@ -111,6 +120,7 @@ n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
 [kappa_2, err] = solveSkill(delta, kappa_1);
 err
 populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
+% populationStructure = [[1, gamma_1, kappa_1, n_1]];
 
 % Set up vectors to keep track of individual's class, trustworthiness, and
 % individual skill during the runs.
@@ -218,7 +228,7 @@ for iRepeat = 1:nRepeats
     
     initialPosition = zeros(nIndividuals,2);                            % Initial location of individuals.
     initialPosition(:,2) = -20+40*rand(nIndividuals,1);                 % Initial position (y) of individuals.
-    initialPosition(:,1) = domainWidth-120+40*rand(nIndividuals,1);     % Initial position (x) of individuals.
+    initialPosition(:,1) = startDist - 20 + 40*rand(nIndividuals,1);     % Initial position (x) of individuals.     % Initial position (x) of individuals.
     position = initialPosition;                                         % Position of individuals.                             
     pairDistanceVec = pdist(position);                                  % Calculate distances between all pairs of individuals.
     pairDistances = squareform(pairDistanceVec);                        % Pair distance matrix
@@ -253,7 +263,7 @@ for iRepeat = 1:nRepeats
     
     % Main loop of the individual simulations, run until end of simulation
     % or all individuals have arrived at the target.
-    while nIndividuals > 0 %&&  t < tEnd (run until all gone)
+    while nIndividuals > 0 &&  (t < tEnd || limitRun == false)
         
         
         
@@ -566,9 +576,14 @@ class1Neighbours.Properties.VariableNames = colnames;
 class2Neighbours.Properties.VariableNames = colnames;
 
 % Save each variable to a csv
-fileTail = sprintf('_range_%d_g%.2fk%.3fn%d_g%.2fk%.3fn%d.csv', ...
+fileTail = sprintf('_range_%d_g%.2fk%.3fn%d_g%.2fk%.3fn%d_seedset.csv', ...
     sensingRange, populationStructure(1,2),populationStructure(1,3),populationStructure(1,4), ...
     populationStructure(2,2),populationStructure(2,3),populationStructure(2,4));   % SW: Keep track of range parameter and population structure for saved data
+
+% fileTail = sprintf('_range_%d_g%.2fk%.3fn%d.csv', ...
+%     sensingRange, populationStructure(1,2),populationStructure(1,3),populationStructure(1,4));   % SW: Keep track of range parameter and population structure for saved data
+
+
 writetable(xPositionMean, strcat(savePath, 'xPosition', fileTail));  
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 writetable(distanceToGoal, strcat(savePath, 'distanceToGoal', fileTail));

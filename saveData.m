@@ -66,7 +66,6 @@ for i = 1:nIndividuals
         if sqrt((position(i,1) - goalLocation(1))^2 + (position(i,2) - goalLocation(2))^2) < sensingRange  % If whale i in range of goal, all
                                                                                                            % arrived are neighbours
             nNeighboursIncArrived(i,1) = numel(arrivedIDs) + nNeighbours(i,1);  % Total number of neighbours for whale i.
-            
             % Arrived neighbours of each class
             for classIdx = 1:numClasses
                 arrivedNeighboursInClass = find(arrivedClass == classIdx);          % which arrived neighbours are of class classIdx
