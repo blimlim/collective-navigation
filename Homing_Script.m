@@ -12,18 +12,17 @@ close all
 
 % Loop over sensing ranges
 % for sensingRange = [0, 5, 10, 20, 50, 500]
-
-for sensingRange = [10]
+for sensingRange = [50]
 sensingRange
 %% User settings
-nRepeats = 1;                                                  % Number of realisations of the model.
+nRepeats = 2;                                                  % Number of realisations of the model.
 nSavePoints = 501;                                              % Number of time points to save model output.
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
-startDist = 750;
+startDist = 100;
 
 % Path for output csv's. 
-savePath = '../cooperative/neighbour_tracking_tests/nneighbourdebug/coop_off/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc/code_cleaning_outputs/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -32,8 +31,7 @@ flowDirection = 0;              % Flow direction (unused).
 flowVelocity = 0;               % Flow velocity (unused).
 
 totalStepCountLoop = 0;         % Number of reorientation events.
-nHistDirection = 60;            % Number of points in histograms.
-directionHist = zeros(nHistDirection-1,1); %Predefine direction histogram.
+
 cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %Define colormap.
 
 domainWidth = 400;              % Width of the domain.
@@ -42,12 +40,12 @@ velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
 tChunkSize = 1000;                  % Size of chunks to break data into
 
-limitRun = false;                % If true, force the run to stop once t > tEnd.
+limitRun = true;                % If true, force the run to stop once t > tEnd.
                                  % If false, run will continue until all
                                  % individuals arive (may take a long time
                                  % depending on population).
 
-tEnd = 2000;                     % Only used if limitRun == true.
+tEnd = 10000;                     % Only used if limitRun == true.
 
 % Weightings between own information and observed neighbours
 alpha = 10/20;                  % Weighting of observations for heading calculation.
@@ -61,22 +59,12 @@ holeLocation = [125,175];       % Location of information void.
     
 navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
-cooperative = "off";    % Controls whether arrived whales stay in simulation and signal location.
+cooperative = "target";    % Controls whether arrived whales stay in simulation and signal location.
                                 % cooperative = "off":
                                 %     individuals which arrive at target
                                 %     are removed from the simulation.
                                 %     They are ignored in the reorientation
                                 %     calculations of remaining agents.
-                                
-                                % cooperative = "individuals":
-                                %     individuals which arrive at target
-                                %     stay at their final location.
-                                %     Reorienting agents calculate angles
-                                %     between their position and arrived
-                                %     whales positions, and treat these
-                                %     angles as observed headings.
-                                %     Weighting factors (gamma) of arrived
-                                %     agents are taken into account.
                                 
                                 % cooperative = "target":
                                 %     Same as cooperative = "individuals",
@@ -118,6 +106,10 @@ n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
  % Solve for kappa_2, so that average individual velocity towards target is unchanged from
  % a uniform population with kappa = 1.
 [kappa_2, err] = solveSkill(delta, kappa_1);
+
+% Print out the error between the effective velocity for the selected
+% parameters and the effective velocity of the uniform population with
+% kappa = 1.
 err
 populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
 % populationStructure = [[1, gamma_1, kappa_1, n_1]];
@@ -153,61 +145,47 @@ numClasses = size(populationStructure, 1);
 %% Set up matrices for saving data
 
 % These will grow as required if the runs take longer.
-finalTime = zeros(nRepeats,1);                                  % Time for all individuals to arrive at the goal.
-xPosition = zeros(nSavePoints,nRepeats);                        % Mean position (x) of the population.
-yPosition = zeros(nSavePoints,nRepeats);                        % Mean position (y) of the population.
-clusterMeasure = zeros(nSavePoints,nRepeats);                   % Measure of clustering of the population.
-meanNeighbours = zeros(nSavePoints,nRepeats);                   % Mean number of neighbours within perceptual range.
-distanceToGoal = zeros(nSavePoints,nRepeats);                   % Mean distance to goal of the population.
-meanDifferenceDirection = zeros(nSavePoints,nRepeats);          % Mean error in heading relative to target.
-nIndividualsRemaining = zeros(nSavePoints,nRepeats);            % Number of individuals remaining in the simulation (i.e. yet to arrive at goal).
-majorityGone = zeros(nRepeats,1);                               % Time for 90% of the individuals to arrive at the goal.
-distanceToGoalAll = zeros(nSavePoints, nRepeats);               % Average distance to goal including those which have arrived at the target.
-meanNeighboursIncArrived = zeros(nSavePoints, nRepeats);        % Mean neighbours of still navigating agents, where neighbours at the target are
-                                                                % counted. Only relevant when cooperative ~= off.                                                                
-xPositionAll = zeros(nSavePoints,nRepeats);                     % Mean position (x) of the population including arrived agents.
-yPositionAll = zeros(nSavePoints,nRepeats);                     % Mean position (y) of the population including arrived agents.
-concentrationParameters = zeros(nSavePoints, nRepeats);         % Store the average concentration parameter at each step
+finalTime = zeros(nRepeats, numClasses + 1);                                  % Time for all individuals to arrive at the goal.
+xPosition = zeros(nSavePoints,nRepeats, numClasses + 1);                        % Mean position (x) of the population.
+yPosition = zeros(nSavePoints,nRepeats, numClasses + 1);                        % Mean position (y) of the population.
+clusterMeasure = zeros(nSavePoints,nRepeats, numClasses + 1);                   % Measure of clustering of the population.
+meanNeighbours = zeros(nSavePoints,nRepeats, numClasses + 1);                   % Mean number of neighbours within perceptual range.
+distanceToGoal = zeros(nSavePoints,nRepeats, numClasses + 1);                   % Mean distance to goal of the population.
+meanDifferenceDirection = zeros(nSavePoints,nRepeats, numClasses + 1);          % Mean error in heading relative to target.
+nIndividualsRemaining = zeros(nSavePoints,nRepeats, numClasses + 1);            % Number of individuals remaining in the simulation (i.e. yet to arrive at goal).
+majorityGone = zeros(nRepeats, numClasses + 1);                               % Time for 90% of the individuals to arrive at the goal.
+distanceToGoalAll = zeros(nSavePoints, nRepeats, numClasses + 1);               % Average distance to goal including those which have arrived at the target.
+meanNeighboursIncArrived = zeros(nSavePoints, nRepeats, numClasses + 1);        % Mean neighbours of still navigating agents, where neighbours at the target are
+                                                                                % counted. Only relevant when cooperative ~= off.                                                                
+xPositionAll = zeros(nSavePoints,nRepeats, numClasses + 1);                     % Mean position (x) of the population including arrived agents.
+yPositionAll = zeros(nSavePoints,nRepeats, numClasses + 1);                     % Mean position (y) of the population including arrived agents.
+concentrationParameters = zeros(nSavePoints, nRepeats, numClasses + 1);         % Store the average concentration parameter at each step
 
+nHistDirection = 60;            % Number of points in histograms.
+directionHist = zeros(nHistDirection-1, numClasses + 1); %Predefine direction histogram.
+
+% Save trajectories only for the first repeat
 xPositionsIndividualsRep1 = zeros(nSavePoints, nIndividualsStart);  % Store positions of each whale for each timestep of repeat 1. 
-yPositionsIndividualsRep1 = zeros(nSavePoints, nIndividualsStart);  % Store positions of each whale for each timestep of repeat 1. 
+yPositionsIndividualsRep1 = zeros(nSavePoints, nIndividualsStart);  % Store positions of each whale for each timestep of repeat 1.
+
+% Number of neighbours of each class, for each class. Dim 1 = "whose
+% neighbours". I.e. Dim 1 = 1 gives the neighbours for class 1, dim 1 = 2
+% gives the neighbours for class 2. 
+
+% Dim 4 selects the class of the neighbours counted. Dim 4 = 1 means it's
+% counting the number of neighbours of any class, dim 4 = 2 means it counts
+% the number of neighbours of class 1, dim 4 = 3 means it counts the number
+% of neighbours of class 2 etc. 
+classSpecificNeighbours = NaN(numClasses, nSavePoints, nRepeats, numClasses + 1);
 
 
-% Page 1 = All individuals, Page 2 = class 1, ..., Page N+1 = class N
-for i = 2:numClasses+1
-    finalTime(:,i) = 0;
-    xPosition(:,:,i) = 0;
-    yPosition(:,:, i) = 0;
-    meanNeighbours(:,:, i) = 0;
-    distanceToGoal(:,:, i) = 0;
-    meanDifferenceDirection(:,:, i) = 0;
-    nIndividualsRemaining(:,:, i) = 0;
-    majorityGone(:, i) = 0;
-    directionHist(:, i) = 0;
-    concentrationParameters(:,:, i) = 0;
-    distanceToGoalAll(:,:,i) = 0;              
-    meanNeighboursIncArrived(:,:,i) = 0;
-    xPositionAll(:,:,i) = 0;
-    yPositionAll(:,:, i) = 0;
-end
-
-% Save the arrival time of each individual for each repeat + class info
+% Save the arrival time of each individual for each repeat + class info.
+% To be used for creating arrival time histograms.
 arrivalTimes = NaN(nIndividualsStart, 3 + nRepeats);
 % First colum = class
 arrivalTimes(:, 1) = classes;
 arrivalTimes(:, 2) = gamma;
 arrivalTimes(:, 3) = individual_kappas;
-
-
-
-% Store the neighbours of each class, by class. I.e. how many neighbours of
-% class 1 do the whales in class 2 have. Data saved to estimate the
-% separation of the two classes. It's a bit messy structuring it this
-% separate way, but also is easier to do.
-class1Neighbours = NaN(nSavePoints, nRepeats, numClasses + 1);
-class2Neighbours = NaN(nSavePoints, nRepeats, numClasses + 1);
-% Everthing is also sort of hardcoded to only work with two classes for
-% now.
 
 
 %% Main body of simulation, loops over number of realisations.
@@ -301,12 +279,8 @@ for iRepeat = 1:nRepeats
         % Find arrived individuals within the perceptual range.
         arrivedDistances = [];
         arrivedNeighbours = [];
-        if cooperative == "individuals" && ~isempty(arrivedPosition)  % Only calculate individual distances if cooperative == "individuals".
-            arrivedDistances = pdist2(position(nextAgent,:), arrivedPosition);      % Distance to current agent
-            arrivedNeighbours = find(arrivedDistances < sensingRangeField(position(nextAgent,1),position(nextAgent,2)));
-            minDistance = min([minDistance, arrivedDistances]);     % Update min distance if close to goal.
         
-        elseif cooperative == "target" && ~isempty(arrivedPosition)  % All arrived agents treated as being precisely at target.
+        if cooperative == "target" && ~isempty(arrivedPosition)  % All arrived agents treated as being precisely at target.
             agentDistToTarget = sqrt((position(nextAgent,1) - goalLocation(1))^2 + (position(nextAgent,2) - goalLocation(2))^2);
             if agentDistToTarget < sensingRange
                 arrivedNeighbours = 1:length(arrivedIDs);            % If agent within sensing range of target, all arrived agents are neighbours
@@ -337,31 +311,8 @@ for iRepeat = 1:nRepeats
                     -position(closestAgent,1)+position(nextAgent,1));
             % Alignment mechanism.    
             elseif minDistance < alignDistance     
-                
-                
-                if cooperative == "individuals"      % Cooperative navigation using positions of arrived agents.
-                    % Calculate angles from nextAgent to arrived neighbours.
-                    anglesToArrived = [];
-                    if nArrivedNeighbours > 0
-                        arrivedNeighbourPositions = arrivedPosition(arrivedNeighbours, :);         % Positions of arrived neighbours.
-                        anglesToArrived = zeros(nArrivedNeighbours,1);
-                        for i = 1:nArrivedNeighbours
-                            anglesToArrived(i) = atan2(arrivedNeighbourPositions(i,2) - position(nextAgent,2), ...
-                                arrivedNeighbourPositions(i,1) - position(nextAgent,1));
-                        end
-                    end
-                    allNeighbourHeadings = [heading(neighbours); anglesToArrived];          % Headings of navigating neighbours and angles to 
-                                                                                            % arrived neighbours.                                                               
-                    allNeighbourGammas = [runGamma(neighbours); arrivedGamma(arrivedNeighbours)];  % Weights for navigating and arrived neighbours.
-                    
-                    % Calculate reorientation parameters
-                    weightedNeighbourHeading = circ_mean(allNeighbourHeadings, allNeighbourGammas);
-                    bestGuessHeading = circ_mean([weightedNeighbourHeading;potentialHeading],[1-alpha;alpha]);   % MLE of heading.
-                    w = [(1-beta)*allNeighbourGammas; beta*sum(allNeighbourGammas)];                     % Individual weightings for concentration parameter
-                    alphaLookup = [allNeighbourHeadings; potentialHeading];                              % Set of observed headings.
-                   
-                   
-                elseif cooperative == "target"  % Cooperative navigation where arrived whales are viewed as being precisely at target
+
+                if cooperative == "target"  % Cooperative navigation where arrived whales are viewed as being precisely at target
                     
                     if nArrivedNeighbours > 0
                         angleToTarget = atan2(goalLocation(2) - position(nextAgent,2), goalLocation(1) - position(nextAgent,1));
@@ -468,15 +419,15 @@ for iRepeat = 1:nRepeats
             concentrationParameters = [concentrationParameters; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
             distanceToGoalAll = [distanceToGoalAll; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];              
             meanNeighboursIncArrived = [meanNeighboursIncArrived; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
-            clusterMeasure = [clusterMeasure; zeros(nSavePoints - 1, nRepeats)];
+            clusterMeasure = [clusterMeasure; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
             xPositionAll = [xPositionAll; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
             yPositionAll = [yPositionAll; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
             
             xPositionsIndividualsRep1 = [xPositionsIndividualsRep1; zeros(nSavePoints, nIndividualsStart)];
             yPositionsIndividualsRep1 = [yPositionsIndividualsRep1; zeros(nSavePoints, nIndividualsStart)];
             
-            class1Neighbours = [class1Neighbours; NaN(nSavePoints, nRepeats, numClasses + 1)];
-            class2Neighbours = [class2Neighbours; NaN(nSavePoints, nRepeats, numClasses + 1)];
+            classSpecificNeighbours = [classSpecificNeighbours; NaN(numClasses, nSavePoints - 1, nrepeats, numClasses + 1)];
+            
             
             % New time corresponding to end of data saving matrices
             tMax = tMax + tChunkSize;
@@ -495,7 +446,7 @@ end
 % Calculate the means over the realisations for each variable.
 
 % Non segmented variables
-clusterMeasure = mean(clusterMeasure,2);                                    % Mean of clustering across realisation loop.
+clusterMeasure = squeeze(mean(clusterMeasure,2));                                    % Mean of clustering across realisation loop.
 
 % Segmented variables, i.e. we have data separated for each class.
 % First page = all agents, page 2 = class 1, ...
@@ -510,97 +461,44 @@ distanceToGoalAll = squeeze(mean(distanceToGoalAll, 2));
 meanNeighboursIncArrived = squeeze(mean(meanNeighboursIncArrived, 2));
 
 
-% Neighbours of each class
-class1Neighbours = squeeze(mean(class1Neighbours, 2, 'omitnan'));
-class2Neighbours = squeeze(mean(class2Neighbours, 2, 'omitnan'));
 
 
-% Add in first two rows stating the gamma and kappa values for each column.
-row0 = [0, populationStructure(:,2)'];                                       % Gamma values
-row1 = [0, populationStructure(:,3)'];                                       % Kappa values
+% Save each variable to a csv. Keep track of run and population data in the
+% filename.
+fileTailStart = sprintf('_distance_%d_range_%d', startDist, sensingRange);
+fileTailEnd = "";
+for classIdx =  1:numClasses
+    fileTailEnd = fileTailEnd + sprintf("_g%.2fk%,3fn%d", populationStructure(classIdx, 2), populationStructure(classIdx, 3), populationStructure(classIdx, 4));
+end
+fileTail = fileTailStart + fileTailEnd + ".csv";
 
-xPositionMean = [row0; row1; xPositionMean];
-distanceToGoal = [row0; row1; distanceToGoal];
-meanNeighbours = [row0; row1; meanNeighbours];
-meanDifferenceDirection = [row0; row1; meanDifferenceDirection];
-nIndividualsRemaining = [row0; row1; nIndividualsRemaining];
-concentrationMean = [row0; row1; concentrationMean];
-majorityGoneMean = [row0; row1; majorityGoneMean];
-directionHist = [row0; row1; directionHist];
-distanceToGoalAll = [row0; row1; distanceToGoalAll];
-meanNeighboursIncArrived = [row0; row1; meanNeighboursIncArrived];
+% Save each of the matrices that are in standard form
+tableSaver(xPositionMean, 'xPosition', populationStructure, fileTail, savePath, numClasses);
+tableSaver(distanceToGoal, 'distanceToGoal', populationStructure, fileTail, savePath, numClasses);
+tableSaver(clusterMeasure, 'clusterMeasure', populationStructure, fileTail, savePath, numClasses);
+tableSaver(meanNeighbours, 'meanNeighbours', populationStructure, fileTail, savePath, numClasses);
+tableSaver(meanDifferenceDirection, 'meanDifferenceDirection', populationStructure, fileTail, savePath, numClasses);
+tableSaver(nIndividualsRemaining, 'nIndividualsRemaining',populationStructure, fileTail, savePath, numClasses);
+tableSaver(concentrationMean, 'meanConcentration',populationStructure, fileTail, savePath, numClasses);
+tableSaver(majorityGoneMean, 'meanMajorityGone', populationStructure, fileTail, savePath, numClasses);
+tableSaver(directionHist, 'directionHist', populationStructure, fileTail, savePath, numClasses);
+tableSaver(distanceToGoalAll, 'distanceToGoalAll', populationStructure, fileTail, savePath, numClasses);
+tableSaver(meanNeighboursIncArrived, 'meanNeighboursIncArrived', populationStructure, fileTail, savePath, numClasses);
 
-% Save the data into tables then into CSV's.
-% First get rid of singleton dimension, and turn into a table
-xPositionMean = array2table(xPositionMean);
-distanceToGoal = array2table(distanceToGoal);
-meanNeighbours = array2table(meanNeighbours);
-meanDifferenceDirection = array2table(meanDifferenceDirection);
-nIndividualsRemaining = array2table(nIndividualsRemaining);
-concentrationMean = array2table(concentrationMean);
-directionHist = array2table(directionHist);
-majorityGoneMean = array2table(majorityGoneMean);
-distanceToGoalAll = array2table(distanceToGoalAll);
-meanNeighboursIncArrived = array2table(meanNeighboursIncArrived);
-
-class1Neighbours = array2table(class1Neighbours);
-class2Neighbours = array2table(class2Neighbours);
+% Now save all of the other matrices which aren't in the standard form.
 
 
+% Save the class specific neighbours.
+% Average over the repeats. dim 3 is the dimension for the repeats. 
+classSpecificNeighbours = squeeze(mean(classSpecificNeighbours, 3, 'omitnan'));
 
-
-
-
-% Add the column names - describe which agents each column refers to
-colnames = cell(numClasses + 1,1);
-colnames(1) = {char("all")};
-
-for i = 1:numClasses
-    page = i + 1;
-    colnames(page) = {char(sprintf("class_%d",populationStructure(i, 1)))};
+for sensingClass = 1:numClasses
+    currentClassNeighbours = squeeze(classSpecificNeighbours(sensingClass, :, :));
+    varName = "class" + sensingClass + "Neighbours";
+    tableSaver(currentClassNeighbours, varName, populationStructure, fileTail, savePath, numClasses);
 end
 
-% Add the column names to the tables 
-
-xPositionMean.Properties.VariableNames = colnames;
-distanceToGoal.Properties.VariableNames = colnames; 
-meanNeighbours.Properties.VariableNames = colnames;
-meanDifferenceDirection.Properties.VariableNames = colnames; 
-nIndividualsRemaining.Properties.VariableNames = colnames; 
-concentrationMean.Properties.VariableNames = colnames;
-directionHist.Properties.VariableNames = colnames;
-majorityGoneMean.Properties.VariableNames = colnames;
-distanceToGoalAll.Properties.VariableNames = colnames;
-meanNeighboursIncArrived.Properties.VariableNames = colnames;
-class1Neighbours.Properties.VariableNames = colnames;
-class2Neighbours.Properties.VariableNames = colnames;
-
-% Save each variable to a csv
-fileTail = sprintf('_range_%d_g%.2fk%.3fn%d_g%.2fk%.3fn%d_seedset.csv', ...
-    sensingRange, populationStructure(1,2),populationStructure(1,3),populationStructure(1,4), ...
-    populationStructure(2,2),populationStructure(2,3),populationStructure(2,4));   % SW: Keep track of range parameter and population structure for saved data
-
-% fileTail = sprintf('_range_%d_g%.2fk%.3fn%d.csv', ...
-%     sensingRange, populationStructure(1,2),populationStructure(1,3),populationStructure(1,4));   % SW: Keep track of range parameter and population structure for saved data
-
-
-writetable(xPositionMean, strcat(savePath, 'xPosition', fileTail));  
-csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
-writetable(distanceToGoal, strcat(savePath, 'distanceToGoal', fileTail));
-writetable(meanNeighbours, strcat(savePath, 'meanNeighbours', fileTail));
-writetable(meanDifferenceDirection, strcat(savePath, 'meanDifferenceDirection', fileTail));
-writetable(nIndividualsRemaining, strcat(savePath, 'nIndividualsRemaining', fileTail));
-writetable(concentrationMean, strcat(savePath, 'meanConcentration', fileTail));
-writetable(directionHist, strcat(savePath, 'directionHist', fileTail));
-writetable(majorityGoneMean, strcat(savePath, 'meanMajorityGone', fileTail));
-writetable(distanceToGoalAll,strcat(savePath, 'distanceToGoalAll', fileTail));
-writetable(meanNeighboursIncArrived,strcat(savePath, 'meanNeighboursIncArrived', fileTail));
-
-
-writetable(class1Neighbours,strcat(savePath, 'class1Neighbours', fileTail));
-writetable(class2Neighbours,strcat(savePath, 'class2Neighbours', fileTail));
-
-% Lastly, save the arrival times of each individual
+% Save the arrival times of each individual
 arrivalTimeColnames = cell(nRepeats+3, 1);
 arrivalTimeColnames(1) = {char("Class")};
 arrivalTimeColnames(2) = {char("gamma")};
@@ -614,8 +512,8 @@ writetable(arrivalTimes, strcat(savePath, 'arrivalTimes', fileTail));
 
 
 
-% Deal with the individual positions for repeat 1
-% Add metadata as first two rows
+% Save trajectories for repeat 1.
+% Add metadata as first two rows.
 posRow1 = individualIDs';
 posRow2 = classes';
 xPositionsIndividualsRep1 = [posRow1; posRow2; xPositionsIndividualsRep1];
@@ -627,7 +525,37 @@ csvwrite(strcat(savePath, 'yPositionsIndividuals', fileTail), yPositionsIndividu
 
 clear kappaCDF                                                              % Clear CDF to avoid saving over and over.
 
-% Plot relevant results
-plotResults;
+end
 
+
+
+
+
+% Function to save tables of standard form, 
+% (Standard form: nSavepoints x (numClasses + 1). Column 1 has data
+% relating to the whole population, column 1 + n has data relating to class
+% n.)
+
+function tableSaver(arrayToSave, varName, populationStructure, fileTail, savePath, numClasses)
+    % Replace NaN's with 0 (makes loading csv's much more straightforward)
+    arrayToSave(isnan(arrayToSave)) = 0;
+    
+    % Add class properties (gamma and kappa) as the first two rows.
+    row0 = [0, populationStructure(:,2)'];                                       % Gamma values
+    row1 = [0, populationStructure(:,3)'];                                       % Kappa values
+    arrayWithMetadata = [row0; row1; arrayToSave];
+    
+    % Convert to table
+    table2Save = array2table(arrayWithMetadata);
+    
+    % Add the variable names - describe which agents each column refers to
+    colnames = cell(numClasses + 1,1);
+    colnames(1) = {char("all")};
+
+    for i = 1:numClasses
+        page = i + 1;
+        colnames(page) = {char(sprintf("class_%d",populationStructure(i, 1)))};
+    end
+    table2Save.Properties.VariableNames = colnames;
+    writetable(table2Save, strcat(savePath, varName, fileTail));
 end

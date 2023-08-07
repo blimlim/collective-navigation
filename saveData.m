@@ -15,9 +15,8 @@ xPositionAll(tSaveCount, iRepeat, 1) = mean(allPosition(:,1));
 yPositionAll(tSaveCount, iRepeat, 1) = mean(allPosition(:,2));
 distanceToGoalAll(tSaveCount, iRepeat, 1) = sqrt((xPositionAll(tSaveCount,iRepeat, 1)-goalLocation(1))^2+(yPositionAll(tSaveCount,iRepeat, 1)-goalLocation(2))^2);    
 
-% Don't know if clusterMeasure needs to be split into classes, so will just
-% keep global value
-clusterMeasure(tSaveCount,iRepeat) = sum(pairDistanceVec)/max((nIndividuals*(nIndividuals-1)),1);                                                   % Measure of population clustering.                                                                      
+clusterMeasure(tSaveCount,iRepeat, 1) = 2*sum(pairDistanceVec)/max((nIndividuals*(nIndividuals-1)),1); % Measure of population clustering. 
+                                                                                                    % SW: Added in factor of 2 to make it average distance per pairing
 nNeighbours = zeros(nIndividuals,numClasses + 1);                                % Current number of observed neighbours. (i+1)th column = # neighbours of class i
                                                                                  % First col is total number of neighbours
 
@@ -26,11 +25,7 @@ diffDirection = zeros(nIndividuals,1);                                      % Di
 
 concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); % Average concentration parameter at last reorientation
 
-% Distances between navigating and arrived individuals.
-if cooperative == "individual" &&  ~(isempty(arrivedPosition))
-    arrivedDistances = pdist2(position, arrivedPosition);
-    % row i col j = dist from navigating whale i to arrived whale j
-end
+
 
 % Loop over individuals to calculate the number of neighbours, and the
 % differences in heading from the target.
@@ -52,17 +47,8 @@ for i = 1:nIndividuals
     
     % If cooperative is not off, count arrived whales within range as
     % neighbours, as their information is used for calculating new headings
-    if cooperative == "individual" && ~(isempty(arrivedPosition))
-        arrivedNeighbours = find(arrivedDistances(i, :) < sensingRangeField(position(i,1),position(i,2)));
-        nNeighboursIncArrived(i,1) = numel(arrivedNeighbours) + nNeighbours(i,1);
-        % Arrived neighbours of each class
-            for classIdx = 1:numClasses
-                arrivedNeighbourClasses = arrivedClass(arrivedNeighbours);
-                
-                arrivedNeighboursInClass = find( arrivedNeighbourClasses == classIdx);          % which arrived neighbours are of class classIdx
-                nNeighboursIncArrived(i, classIdx + 1) = nNeighbours(i, classIdx + 1) + numel(arrivedNeighboursInClass);
-            end
-    elseif cooperative == "target" && ~(isempty(arrivedPosition))
+  
+    if cooperative == "target" && ~(isempty(arrivedPosition))
         if sqrt((position(i,1) - goalLocation(1))^2 + (position(i,2) - goalLocation(2))^2) < sensingRange  % If whale i in range of goal, all
                                                                                                            % arrived are neighbours
             nNeighboursIncArrived(i,1) = numel(arrivedIDs) + nNeighbours(i,1);  % Total number of neighbours for whale i.
@@ -87,11 +73,11 @@ end
 meanNeighbours(tSaveCount,iRepeat, 1) = mean(nNeighbours(:,1));                     % Average number of actively navigating neighbours across all individuals
 meanNeighboursIncArrived(tSaveCount, iRepeat, 1) = mean(nNeighboursIncArrived(:,1)); % Average number of neighbours including arrived, across all individuals
 
-class1Neighbours(tSaveCount, iRepeat, 1) = mean(nNeighboursIncArrived(find(runClass == 1), 1));
-class2Neighbours(tSaveCount, iRepeat, 1) = mean(nNeighboursIncArrived(find(runClass == 2), 1));
-for classIdx = 1:numClasses
-    class1Neighbours(tSaveCount, iRepeat, classIdx+1) = mean(nNeighboursIncArrived(find(runClass == 1), classIdx+1));     % average number of neighbours of class classIdx, for individuals in class 1
-    class2Neighbours(tSaveCount, iRepeat, classIdx+1) = mean(nNeighboursIncArrived(find(runClass == 2), classIdx+1));     % average number of neighbours of class classIdx, for individuals in class 2
+for sensingClass = 1:numClasses
+    classSpecificNeighbours(sensingClass, tSaveCount, iRepeat, 1) =  mean(nNeighboursIncArrived(find(runClass == sensingClass), 1)); % average total neighbours for individuals in class sensingClass.
+    for sensedClass = 1:numClasses
+        classSpecificNeighbours(sensingClass, tSaveCount, iRepeat, sensedClass + 1) = mean(nNeighboursIncArrived(find(runClass == sensingClass), sensedClass+1));     % average number of neighbours of class sensedClass, for individuals in class sensingClass
+    end
 end
 
 
@@ -135,7 +121,7 @@ for classidx = 1:numClasses
     arrivedAgentsInClass = find(arrivedClass == classidx);
    
     
-    if numInClass ~= 0
+    if numInClass ~= 0                                                 % Only do calculations if there are agents in class still navigating
         classPositions = position(agentsInClass,:);
         classXPosition = mean(classPositions(:,1));
         classYPosition = mean(classPositions(:,2));
@@ -154,6 +140,13 @@ for classidx = 1:numClasses
     
         classConcentrationParameters = mean(concentrationIndividual(agentsInClass)); % Average concentration parameter at last reorientation.
 
+        % Cluster measure for class (average pairdistance within the class)
+        classPairDistVec = pdist(classPositions);
+        if numInClass == 0
+            classPairDistVec = [0];
+        end
+        classClusterMeasure = 2*sum(classPairDistVec)/max((numInClass*(numInClass-1)),1);   % Average distance between pairs within class. 
+        
         % Save the data for the current class and timestep to the overall
         % storage arrays
         distanceToGoal(tSaveCount, iRepeat, page) = classDistanceToGoal;
@@ -162,9 +155,9 @@ for classidx = 1:numClasses
         nIndividualsRemaining(tSaveCount, iRepeat, page) = numInClass;
         concentrationParameters(tSaveCount, iRepeat, page) = classConcentrationParameters;
         directionHist(:,page) = directionHist(:,page) + histcounts(mod(heading(agentsInClass),2*pi),linspace(0,2*pi,nHistDirection))'; % Generate histogram of headings.
-        
         distanceToGoalAll(tSaveCount, iRepeat, page) = classDistanceToGoalAll;
         meanNeighboursIncArrived(tSaveCount, iRepeat, page) = classnNeighboursIncArrived;
+        clusterMeasure(tSaveCount, iRepeat, page) = classClusterMeasure;
         
         
     end
