@@ -192,7 +192,7 @@ nIndividualsRemaining = mean(nIndividualsRemaining,2);                      % Me
 
 % Save the data
 fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
-savePath = '../reproduce_fig_2/csv_pairdist_fixed/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc/sanity_check/originalcode/';
 csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
 csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
 csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
