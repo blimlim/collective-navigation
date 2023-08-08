@@ -11,18 +11,17 @@ clear all
 close all
 
 % Loop over sensing ranges
-% for sensingRange = [0, 5, 10, 20, 50, 500]
-for sensingRange = [50]
+for sensingRange = [0, 5, 10, 20, 50, 500]
 sensingRange
 %% User settings
-nRepeats = 2;                                                  % Number of realisations of the model.
+nRepeats = 10;                                                  % Number of realisations of the model.
 nSavePoints = 501;                                              % Number of time points to save model output.
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
-startDist = 100;
+startDist = 20000;                        % Initial distance from the target
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc/code_cleaning_outputs/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc/sanity_check/newcode/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -34,8 +33,8 @@ totalStepCountLoop = 0;         % Number of reorientation events.
 
 cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %Define colormap.
 
-domainWidth = 400;              % Width of the domain.
-domainHeight = 300;             % Height of the domain.    
+domainWidth = 400;              % Width of the domain. SW: Not used
+domainHeight = 300;             % Height of the domain.    SW: Not used
 velocity = 1;                   % Speed of individuals.
 runTime = 1;                    % Mean reorientation time.
 tChunkSize = 1000;                  % Size of chunks to break data into
@@ -59,7 +58,7 @@ holeLocation = [125,175];       % Location of information void.
     
 navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
-cooperative = "target";    % Controls whether arrived whales stay in simulation and signal location.
+cooperative = "off";    % Controls whether arrived whales stay in simulation and signal location.
                                 % cooperative = "off":
                                 %     individuals which arrive at target
                                 %     are removed from the simulation.
@@ -112,7 +111,7 @@ n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
 % kappa = 1.
 err
 populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
-% populationStructure = [[1, gamma_1, kappa_1, n_1]];
+%populationStructure = [[1, gamma_1, kappa_1, n_1]];
 
 % Set up vectors to keep track of individual's class, trustworthiness, and
 % individual skill during the runs.
@@ -468,7 +467,7 @@ meanNeighboursIncArrived = squeeze(mean(meanNeighboursIncArrived, 2));
 fileTailStart = sprintf('_distance_%d_range_%d', startDist, sensingRange);
 fileTailEnd = "";
 for classIdx =  1:numClasses
-    fileTailEnd = fileTailEnd + sprintf("_g%.2fk%,3fn%d", populationStructure(classIdx, 2), populationStructure(classIdx, 3), populationStructure(classIdx, 4));
+    fileTailEnd = fileTailEnd + sprintf("_g%.2fk%.3fn%d", populationStructure(classIdx, 2), populationStructure(classIdx, 3), populationStructure(classIdx, 4));
 end
 fileTail = fileTailStart + fileTailEnd + ".csv";
 
