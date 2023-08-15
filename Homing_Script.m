@@ -18,10 +18,10 @@ nRepeats = 10;                                                  % Number of real
 nSavePoints = 501;                                              % Number of time points to save model output.
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
-startDist = 20000;                        % Initial distance from the target
+startDist = 300;                        % Initial distance from the target
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc/sanity_check/newcode/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/skill_classes/reruns/uniform/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -44,7 +44,7 @@ limitRun = true;                % If true, force the run to stop once t > tEnd.
                                  % individuals arive (may take a long time
                                  % depending on population).
 
-tEnd = 10000;                     % Only used if limitRun == true.
+tEnd = 1000;                     % Only used if limitRun == true.
 
 % Weightings between own information and observed neighbours
 alpha = 10/20;                  % Weighting of observations for heading calculation.
@@ -58,7 +58,7 @@ holeLocation = [125,175];       % Location of information void.
     
 navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;       % Direction of target.
 
-cooperative = "off";    % Controls whether arrived whales stay in simulation and signal location.
+cooperative = "target";    % Controls whether arrived whales stay in simulation and signal location.
                                 % cooperative = "off":
                                 %     individuals which arrive at target
                                 %     are removed from the simulation.
@@ -92,26 +92,27 @@ nIndividualsStart = 100;    % Total population size
 % gamma = trustworthiness
 % kappa = navigation skill
 gamma_1 = 1;                % Trustworthiness of class 1. Always set to 1
-kappa_1 = 0.5;              % Navigation skill of class 1.
-n_1 = 50;                   % Number of individuals in class 1.
-
-delta = n_1/nIndividualsStart; % Fraction of population in class 1.
-
-% Solve for class 2 parameters
-gamma_2 = 1;                % Uniform trustworthiness
-n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
-
-
- % Solve for kappa_2, so that average individual velocity towards target is unchanged from
- % a uniform population with kappa = 1.
-[kappa_2, err] = solveSkill(delta, kappa_1);
-
-% Print out the error between the effective velocity for the selected
-% parameters and the effective velocity of the uniform population with
-% kappa = 1.
-err
-populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
-%populationStructure = [[1, gamma_1, kappa_1, n_1]];
+kappa_1 = 1.0;              % Navigation skill of class 1.
+n_1 = 100;                   % Number of individuals in class 1.
+% 
+% delta = n_1/nIndividualsStart; % Fraction of population in class 1.
+% 
+% % Solve for class 2 parameters
+% gamma_2 = 1;                % Uniform trustworthiness
+% n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
+% 
+% 
+%  % Solve for kappa_2, so that average individual velocity towards target is unchanged from
+%  % a uniform population with kappa = 1.
+% [kappa_2, err] = solveSkill(delta, kappa_1);
+% 
+% % Print out the error between the effective velocity for the selected
+% % parameters and the effective velocity of the uniform population with
+% % kappa = 1.
+% kappa_2
+% err
+% populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
+populationStructure = [[1, gamma_1, kappa_1, n_1]];
 
 % Set up vectors to keep track of individual's class, trustworthiness, and
 % individual skill during the runs.
@@ -152,16 +153,20 @@ meanNeighbours = zeros(nSavePoints,nRepeats, numClasses + 1);                   
 distanceToGoal = zeros(nSavePoints,nRepeats, numClasses + 1);                   % Mean distance to goal of the population.
 meanDifferenceDirection = zeros(nSavePoints,nRepeats, numClasses + 1);          % Mean error in heading relative to target.
 nIndividualsRemaining = zeros(nSavePoints,nRepeats, numClasses + 1);            % Number of individuals remaining in the simulation (i.e. yet to arrive at goal).
-majorityGone = zeros(nRepeats, numClasses + 1);                               % Time for 90% of the individuals to arrive at the goal.
+majorityGone = zeros(nRepeats, numClasses + 1);                                 % Time for 90% of the individuals to arrive at the goal.
 distanceToGoalAll = zeros(nSavePoints, nRepeats, numClasses + 1);               % Average distance to goal including those which have arrived at the target.
 meanNeighboursIncArrived = zeros(nSavePoints, nRepeats, numClasses + 1);        % Mean neighbours of still navigating agents, where neighbours at the target are
                                                                                 % counted. Only relevant when cooperative ~= off.                                                                
 xPositionAll = zeros(nSavePoints,nRepeats, numClasses + 1);                     % Mean position (x) of the population including arrived agents.
 yPositionAll = zeros(nSavePoints,nRepeats, numClasses + 1);                     % Mean position (y) of the population including arrived agents.
 concentrationParameters = zeros(nSavePoints, nRepeats, numClasses + 1);         % Store the average concentration parameter at each step
+effectiveVelocity = NaN(nSavePoints, nRepeats, numClasses + 1);                 % Average velocity in direction of target.
 
-nHistDirection = 60;            % Number of points in histograms.
-directionHist = zeros(nHistDirection-1, numClasses + 1); %Predefine direction histogram.
+nHistDirection = 60;                                                            % Number of points in histograms.
+directionHist = zeros(nHistDirection-1, numClasses + 1);                        % Predefine direction histogram.
+
+nHistVelocity = 81;                                                             % Number of points in effective velocity histogram.
+velocityHist = zeros(nSavePoints, nHistVelocity - 1, numClasses + 1);           % Predefine time varying effective velocity histogram.
 
 % Save trajectories only for the first repeat
 xPositionsIndividualsRep1 = zeros(nSavePoints, nIndividualsStart);  % Store positions of each whale for each timestep of repeat 1. 
@@ -425,7 +430,12 @@ for iRepeat = 1:nRepeats
             xPositionsIndividualsRep1 = [xPositionsIndividualsRep1; zeros(nSavePoints, nIndividualsStart)];
             yPositionsIndividualsRep1 = [yPositionsIndividualsRep1; zeros(nSavePoints, nIndividualsStart)];
             
-            classSpecificNeighbours = [classSpecificNeighbours; NaN(numClasses, nSavePoints - 1, nrepeats, numClasses + 1)];
+            effectiveVelocity = [effectiveVelocity; zeros(nSavePoints - 1, nRepeats, numClasses + 1)];
+            velocityHist = [velocityHist; zeros(nSavePoints - 1, nHistVelocity - 1, numClasses + 1)]; 
+            
+
+            % Concatenate along time dimension
+            classSpecificNeighbours = cat(2, classSpecificNeighbours, NaN(numClasses, nSavePoints - 1, nRepeats, numClasses + 1));
             
             
             % New time corresponding to end of data saving matrices
@@ -458,6 +468,7 @@ concentrationMean = squeeze(mean(concentrationParameters, 2));                  
 majorityGoneMean = mean(majorityGone, 1); 
 distanceToGoalAll = squeeze(mean(distanceToGoalAll, 2));
 meanNeighboursIncArrived = squeeze(mean(meanNeighboursIncArrived, 2));
+effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));
 
 
 
@@ -483,6 +494,7 @@ tableSaver(majorityGoneMean, 'meanMajorityGone', populationStructure, fileTail, 
 tableSaver(directionHist, 'directionHist', populationStructure, fileTail, savePath, numClasses);
 tableSaver(distanceToGoalAll, 'distanceToGoalAll', populationStructure, fileTail, savePath, numClasses);
 tableSaver(meanNeighboursIncArrived, 'meanNeighboursIncArrived', populationStructure, fileTail, savePath, numClasses);
+tableSaver(effectiveVelocity, 'meanEffectiveVelocity', populationStructure, fileTail, savePath, numClasses);
 
 % Now save all of the other matrices which aren't in the standard form.
 
@@ -509,6 +521,29 @@ arrivalTimes = array2table(arrivalTimes);
 arrivalTimes.Properties.VariableNames = arrivalTimeColnames;
 writetable(arrivalTimes, strcat(savePath, 'arrivalTimes', fileTail));
 
+% Save the time varying velocity histograms.
+% Combine the histograms over several timesteps.
+nTimeStepCombine = 50; 
+nTimeBins = ceil(size(velocityHist,1)/nTimeStepCombine);
+
+for page = 1:numClasses+1
+    if page == 1
+        class = "All";
+    else
+        class = page - 1;
+    end
+    
+    velocityHistogramCurrent = velocityHist(:,:,page);
+    
+    velocityHistogramCurrentBinned = zeros(nTimeBins, nHistVelocity - 1);
+
+    for i = 1:nTimeBins
+        binEnd = min([i*nTimeStepCombine, size(velocityHistogramCurrent, 1)]);
+        velocityHistogramCurrentBinned(i,:) = sum(velocityHistogramCurrent((i-1)*nTimeStepCombine + 1: binEnd, :), 1);
+    end
+    
+    csvwrite(strcat(savePath, "velocityHistogramClass" + class, sprintf('_nTstep%d',nTimeStepCombine), fileTail),velocityHistogramCurrentBinned);
+end
 
 
 % Save trajectories for repeat 1.

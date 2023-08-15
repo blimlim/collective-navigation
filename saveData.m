@@ -23,8 +23,20 @@ nNeighbours = zeros(nIndividuals,numClasses + 1);                               
 nNeighboursIncArrived = zeros(nIndividuals, numClasses + 1);                                % Number of observed neighbours, including those at target
 diffDirection = zeros(nIndividuals,1);                                      % Difference in direction between heading and target.
 
-concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); % Average concentration parameter at last reorientation
+concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); % Average concentration parameter at last reorientation.
 
+
+% Average velocity in direction of target
+heading;
+anglesToTarget = navigationField(position(:,1), position(:,2));             % Angles from each whale to the target.
+vectorsToTarget = [cos(anglesToTarget), sin(anglesToTarget)];               % Unit vectors towards target from whale locations.
+velocityVectors = velocity*[cos(heading), sin(heading)];                    % Velocity vectors for individuals.
+velocityToTarget = dot(velocityVectors, vectorsToTarget, 2);                % Component of velocity in direction of target
+
+effectiveVelocity(tSaveCount, iRepeat, 1) = mean(velocityToTarget);         % Save mean velocity towards target
+
+% Velocity histogram 
+velocityHist(tSaveCount, :, 1) = velocityHist(tSaveCount, :, 1) + histcounts(velocityToTarget, linspace(-1, 1, nHistVelocity));
 
 
 % Loop over individuals to calculate the number of neighbours, and the
@@ -126,7 +138,8 @@ for classidx = 1:numClasses
         classXPosition = mean(classPositions(:,1));
         classYPosition = mean(classPositions(:,2));
         classDistanceToGoal = sqrt((classXPosition-goalLocation(1))^2+(classYPosition-goalLocation(2))^2);     % Mean distance of the population to the goal.
-    
+        classVelocityToTarget = mean(velocityToTarget(agentsInClass));
+        
         classPositionsAll = [position(agentsInClass,:); arrivedPosition(arrivedAgentsInClass,:)];                 % Position including arrived agents.
         classXPositionAll = mean(classPositionsAll(:,1));
         classYPositionAll = mean(classPositionsAll(:,2));
@@ -139,6 +152,8 @@ for classidx = 1:numClasses
         classnNeighboursIncArrived = mean(nNeighboursIncArrived(agentsInClass, 1));
     
         classConcentrationParameters = mean(concentrationIndividual(agentsInClass)); % Average concentration parameter at last reorientation.
+        
+        
 
         % Cluster measure for class (average pairdistance within the class)
         classPairDistVec = pdist(classPositions);
@@ -155,9 +170,11 @@ for classidx = 1:numClasses
         nIndividualsRemaining(tSaveCount, iRepeat, page) = numInClass;
         concentrationParameters(tSaveCount, iRepeat, page) = classConcentrationParameters;
         directionHist(:,page) = directionHist(:,page) + histcounts(mod(heading(agentsInClass),2*pi),linspace(0,2*pi,nHistDirection))'; % Generate histogram of headings.
+        velocityHist(tSaveCount, :, page) = velocityHist(tSaveCount, :, page) + histcounts(velocityToTarget(agentsInClass), linspace(-1, 1, nHistVelocity)); % Velocity histogram 
         distanceToGoalAll(tSaveCount, iRepeat, page) = classDistanceToGoalAll;
         meanNeighboursIncArrived(tSaveCount, iRepeat, page) = classnNeighboursIncArrived;
         clusterMeasure(tSaveCount, iRepeat, page) = classClusterMeasure;
+        effectiveVelocity(tSaveCount, iRepeat, page) = classVelocityToTarget;
         
         
     end
