@@ -112,14 +112,16 @@ end
 % individuals
 % Recall: % Page 1 = All individuals, Page 2 = class 1, ..., Page N+1 = class N
 
-for classidx = 1:numClasses
-    page = classidx + 1;
-    agentsInClass = find(runClass == classidx);                           % Indices of remaining agents within the current class.
+for idx = 1:numClasses
+    page = idx + 1;
+    classIdx = populationStructure(idx, 1);         % Used in case there is only 1 class navigating which we want named 'class 2'
+    
+    agentsInClass = find(runClass == classIdx);                           % Indices of remaining agents within the current class.
     numInClass = numel(agentsInClass);
     
     
     % Check if 90% of individals in the current class have arrived at target and if so, store time.
-    if numInClass/populationStructure(classidx, 4) <= 0.1 && majorityCheck(page) == 0              
+    if numInClass/populationStructure(idx, 4) <= 0.1 && majorityCheck(page) == 0              
         majorityGone(iRepeat, page) = t;
         majorityCheck(page) = 1;
     end
@@ -130,7 +132,7 @@ for classidx = 1:numClasses
     % repeats. Keep this in mind, so probably don't trust the data towards
     % the end of the run anyway.
     
-    arrivedAgentsInClass = find(arrivedClass == classidx);
+    arrivedAgentsInClass = find(arrivedClass == classIdx);
    
     
     if numInClass ~= 0                                                 % Only do calculations if there are agents in class still navigating

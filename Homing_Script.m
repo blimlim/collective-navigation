@@ -10,18 +10,21 @@
 clear all
 close all
 
+for slowClassGamma = [1]
+slowClassGamma
+
 % Loop over sensing ranges
-for sensingRange = [0, 5, 10, 20, 50, 500]
+for sensingRange = [0, 5, 10, 20, 50, 100, 200, 500]
 sensingRange
 %% User settings
 nRepeats = 10;                                                  % Number of realisations of the model.
-nSavePoints = 501;                                              % Number of time points to save model output.
+nSavePoints = 501;                                              % Number of time points to save model output.`
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
 startDist = 300;                        % Initial distance from the target
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/skill_classes/reruns/uniform/';
+savePath = sprintf('/Users/boppin/Documents/work/Whales/collective-navigation-2/skill+weighting/outputs/g%.1fk0.5n50_g1k1.7408n50/', slowClassGamma);
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -91,28 +94,28 @@ nIndividualsStart = 100;    % Total population size
 
 % gamma = trustworthiness
 % kappa = navigation skill
-gamma_1 = 1;                % Trustworthiness of class 1. Always set to 1
-kappa_1 = 1.0;              % Navigation skill of class 1.
-n_1 = 100;                   % Number of individuals in class 1.
-% 
-% delta = n_1/nIndividualsStart; % Fraction of population in class 1.
-% 
-% % Solve for class 2 parameters
-% gamma_2 = 1;                % Uniform trustworthiness
-% n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
-% 
-% 
-%  % Solve for kappa_2, so that average individual velocity towards target is unchanged from
-%  % a uniform population with kappa = 1.
-% [kappa_2, err] = solveSkill(delta, kappa_1);
-% 
-% % Print out the error between the effective velocity for the selected
-% % parameters and the effective velocity of the uniform population with
-% % kappa = 1.
-% kappa_2
-% err
-% populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
-populationStructure = [[1, gamma_1, kappa_1, n_1]];
+gamma_1 = slowClassGamma;                % Trustworthiness of class 1
+kappa_1 = 0.5;              % Navigation skill of class 1.
+n_1 = 50;                   % Number of individuals in class 1.
+ 
+ delta = n_1/nIndividualsStart; % Fraction of population in class 1.
+
+% Solve for class 2 parameters
+gamma_2 = 1;                % Second class trustworthiness. Always have faster class with trustworthiness 1.
+n_2 = nIndividualsStart - n_1;      % Number of individuals in class 2
+
+
+ % Solve for kappa_2, so that average individual velocity towards target is unchanged from
+ % a uniform population with kappa = 1.
+[kappa_2, err] = solveSkill(delta, kappa_1);
+
+% Print out the error between the effective velocity for the selected
+% parameters and the effective velocity of the uniform population with
+% kappa = 1.
+kappa_2
+err
+populationStructure = [[1, gamma_1, kappa_1, n_1]; [2, gamma_2, kappa_2, n_2]];
+% populationStructure = [[1, gamma_1, kappa_1, n_1]];
 
 % Set up vectors to keep track of individual's class, trustworthiness, and
 % individual skill during the runs.
@@ -502,6 +505,8 @@ tableSaver(effectiveVelocity, 'meanEffectiveVelocity', populationStructure, file
 % Save the class specific neighbours.
 % Average over the repeats. dim 3 is the dimension for the repeats. 
 classSpecificNeighbours = squeeze(mean(classSpecificNeighbours, 3, 'omitnan'));
+% There seems to be a bug when there is only one class, is it averaging
+% over the wrong dimension in that case?
 
 for sensingClass = 1:numClasses
     currentClassNeighbours = squeeze(classSpecificNeighbours(sensingClass, :, :));
@@ -569,6 +574,8 @@ end
 % (Standard form: nSavepoints x (numClasses + 1). Column 1 has data
 % relating to the whole population, column 1 + n has data relating to class
 % n.)
+
+end
 
 function tableSaver(arrayToSave, varName, populationStructure, fileTail, savePath, numClasses)
     % Replace NaN's with 0 (makes loading csv's much more straightforward)
