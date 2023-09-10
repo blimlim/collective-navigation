@@ -14,17 +14,17 @@ for slowClassGamma = [1]
 slowClassGamma
 
 % Loop over sensing ranges
-for sensingRange = [0, 5, 10, 20, 50, 100, 200, 500]
+for sensingRange = [50]
 sensingRange
 %% User settings
-nRepeats = 10;                                                  % Number of realisations of the model.
+nRepeats = 1;                                                  % Number of realisations of the model.
 nSavePoints = 501;                                              % Number of time points to save model output.`
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
 
-startDist = 300;                        % Initial distance from the target
+startDist = 600;                        % Initial distance from the target
 
 % Path for output csv's. 
-savePath = sprintf('/Users/boppin/Documents/work/Whales/collective-navigation-2/skill+weighting/outputs/g%.1fk0.5n50_g1k1.7408n50/', slowClassGamma);
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/linearSlowdown/1stTrial/Class2SlowedOnly/csvs/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -39,6 +39,18 @@ cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %D
 domainWidth = 400;              % Width of the domain. SW: Not used
 domainHeight = 300;             % Height of the domain.    SW: Not used
 velocity = 1;                   % Speed of individuals.
+
+modulateSpeeds = false;          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
+                                % Doesn't do anything if sensingRange == 0
+if modulateSpeeds
+    maxDist =  2*sensingRange;    % Maximum distance from mean position (along axis towards goal). Past this distance, the whales stop.
+                                % This is a parameter to choose. The
+                                % smaller maxdif, the less the whales will
+                                % spread along the axis towards goal.
+end
+
+
+
 runTime = 1;                    % Mean reorientation time.
 tChunkSize = 1000;                  % Size of chunks to break data into
 
@@ -47,7 +59,7 @@ limitRun = true;                % If true, force the run to stop once t > tEnd.
                                  % individuals arive (may take a long time
                                  % depending on population).
 
-tEnd = 1000;                     % Only used if limitRun == true.
+tEnd = 2000;                     % Only used if limitRun == true.
 
 % Weightings between own information and observed neighbours
 alpha = 10/20;                  % Weighting of observations for heading calculation.
@@ -271,7 +283,11 @@ for iRepeat = 1:nRepeats
         t = t+nextUpdate;                                               % Update time.
        
         % Update the position of all individuals. Flow field is not used.
-        position = position + velocity*timeElapsed*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
+        if modulateSpeeds && sensingRange > 0
+            position = position + timeElapsed*modulatevelocity(position, runKappa, goalLocation, velocity, maxDist).*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
+        else
+            position = position + velocity*timeElapsed*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
+        end
         pairDistanceUpdate;                                             % Update pair distances for all pairs of individuals.
         pairDistances(1:nIndividuals+1:end) = 1e10;                     % Avoid influence of pairs of identical individuals.
         
@@ -479,6 +495,11 @@ effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));
 % Save each variable to a csv. Keep track of run and population data in the
 % filename.
 fileTailStart = sprintf('_distance_%d_range_%d', startDist, sensingRange);
+if modulateSpeeds
+    fileTailStart = strcat(fileTailStart, sprintf('modulatetrue_m%d',maxDist));
+else
+    fileTailStart = strcat(fileTailStart, 'modulatefalse');
+end
 fileTailEnd = "";
 for classIdx =  1:numClasses
     fileTailEnd = fileTailEnd + sprintf("_g%.2fk%.3fn%d", populationStructure(classIdx, 2), populationStructure(classIdx, 3), populationStructure(classIdx, 4));
@@ -570,12 +591,14 @@ end
 
 
 
+
+end
+
+
 % Function to save tables of standard form, 
 % (Standard form: nSavepoints x (numClasses + 1). Column 1 has data
 % relating to the whole population, column 1 + n has data relating to class
 % n.)
-
-end
 
 function tableSaver(arrayToSave, varName, populationStructure, fileTail, savePath, numClasses)
     % Replace NaN's with 0 (makes loading csv's much more straightforward)
@@ -600,3 +623,6 @@ function tableSaver(arrayToSave, varName, populationStructure, fileTail, savePat
     table2Save.Properties.VariableNames = colnames;
     writetable(table2Save, strcat(savePath, varName, fileTail));
 end
+
+
+
