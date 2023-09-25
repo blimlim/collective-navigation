@@ -1,4 +1,5 @@
-function newvels = modulatevelocity(position, kappas, goalPosition, velocity, maxDist)
+function newSpeed = modulatevelocity(position, kappas, goalPosition, velocity, maxDist, noisyModulation, noise_SD)
+    % Note that velocity is just scalar, i.e. speed...
     meanPosition = mean(position, 1);                              % Average position of the population
     
     goalUnitVec = (goalPosition - meanPosition)/norm(goalPosition - meanPosition);  % Unit vector from average position towards target 
@@ -8,10 +9,14 @@ function newvels = modulatevelocity(position, kappas, goalPosition, velocity, ma
     compToGoal = dispFromMean * (goalUnitVec');                                     % Distance of each agent from mean position along the 
                                                                                     % axis towards the goal from the mean position
                                                                                     
+    % Add noise to displacement from mean if noisyModulation is true
+    if noisyModulation 
+        compToGoal = compToGoal + normrnd(0, noise_SD, size(compToGoal));
+    end 
+    
     scaleFactor = linearScalefactor(compToGoal, maxDist);                           % Calculate velocity reduction factor based on distance from mean
     scaleFactor(kappas < max(kappas)) = 1;                                          % Only scale down the faster class ? check if this makes any 
                                                                                     % improvements.
-    
     newvels = velocity * scaleFactor;
 end
 

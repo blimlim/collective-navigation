@@ -30,7 +30,12 @@ concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); 
 heading;
 anglesToTarget = navigationField(position(:,1), position(:,2));             % Angles from each whale to the target.
 vectorsToTarget = [cos(anglesToTarget), sin(anglesToTarget)];               % Unit vectors towards target from whale locations.
-velocityVectors = velocity*[cos(heading), sin(heading)];                    % Velocity vectors for individuals.
+if modulateSpeeds == true
+    velocityVectors = newVelocity;
+else
+    velocityVectors = velocity*[cos(heading), sin(heading)];                    % Velocity vectors for individuals.
+end
+
 velocityToTarget = dot(velocityVectors, vectorsToTarget, 2);                % Component of velocity in direction of target
 
 effectiveVelocity(tSaveCount, iRepeat, 1) = mean(velocityToTarget);         % Save mean velocity towards target
@@ -91,6 +96,14 @@ for sensingClass = 1:numClasses
         classSpecificNeighbours(sensingClass, tSaveCount, iRepeat, sensedClass + 1) = mean(nNeighboursIncArrived(find(runClass == sensingClass), sensedClass+1));     % average number of neighbours of class sensedClass, for individuals in class sensingClass
     end
 end
+
+if numClasses == 2 && contactCheck == 1
+    if classSpecificNeighbours(1, tSaveCount, iRepeat, 3) == 0              % if class 1 senses no class 2 whales, record the time.
+        lastContact(iRepeat) = t;
+        contactCheck = 0; % Time of loss of contact has been recorded now, so don't overwrite.
+    end 
+end
+
 
 
 meanDifferenceDirection(tSaveCount,iRepeat, 1) = mean(diffDirection);          % Average difference between heading and target.
@@ -162,6 +175,17 @@ for idx = 1:numClasses
         if numInClass == 0
             classPairDistVec = [0];
         end
+        if ismember(tSaveCount, histClustermeasureSnapshots)
+            % If at one of the specified cluster measure histogram
+            % savepoints, save the histogram.
+            
+            % Note for this histogram, I'm only doing one for each class
+            % individually, and none for the population as a whole.
+    
+            clustermeasureHist(histClustermeasureSnapshots == tSaveCount, :, classIdx) = clustermeasureHist(histClustermeasureSnapshots == tSaveCount, :, classIdx)...
+                                                        + histcounts(classPairDistVec, linspace(0, 1000, nHistClustermeasure));
+        end
+
         classClusterMeasure = 2*sum(classPairDistVec)/max((numInClass*(numInClass-1)),1);   % Average distance between pairs within class. 
         
         % Save the data for the current class and timestep to the overall

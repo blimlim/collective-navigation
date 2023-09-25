@@ -24,7 +24,7 @@ load('kappaCDFLookupTable.mat');                                % Load the looku
 startDist = 600;                        % Initial distance from the target
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/linearSlowdown/1stTrial/Class2SlowedOnly/csvs/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/linearSlowdown/1stTrial/misc_tests/test_pairdist_histogram/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -42,13 +42,14 @@ velocity = 1;                   % Speed of individuals.
 
 modulateSpeeds = false;          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
                                 % Doesn't do anything if sensingRange == 0
-if modulateSpeeds
-    maxDist =  2*sensingRange;    % Maximum distance from mean position (along axis towards goal). Past this distance, the whales stop.
-                                % This is a parameter to choose. The
-                                % smaller maxdif, the less the whales will
-                                % spread along the axis towards goal.
-end
-
+                                
+maxDist =  0.5*sensingRange;      % Maximum distance from mean position (along axis towards goal). Past this distance, the whales stop.
+                                % This is a parameter to choose. The smaller maxdif, the less the whales will
+                                % spread along the axis towards goal. 
+                                % Does nothing if modulateSpeeds is false.
+                                
+noisyModulation = true;         % Add noise to velocity modulation. Does nothing if modulateSpeeds is false.                            
+noise_SD = maxDist/5.           % Controls width of noise whin modulating velocities. 
 
 
 runTime = 1;                    % Mean reorientation time.
@@ -196,7 +197,7 @@ yPositionsIndividualsRep1 = zeros(nSavePoints, nIndividualsStart);  % Store posi
 % the number of neighbours of class 1, dim 4 = 3 means it counts the number
 % of neighbours of class 2 etc. 
 classSpecificNeighbours = NaN(numClasses, nSavePoints, nRepeats, numClasses + 1);
-
+                            % (sensing class, tSaveCount, repeat, sensedclass + 1 )
 
 % Save the arrival time of each individual for each repeat + class info.
 % To be used for creating arrival time histograms.
@@ -205,6 +206,32 @@ arrivalTimes = NaN(nIndividualsStart, 3 + nRepeats);
 arrivalTimes(:, 1) = classes;
 arrivalTimes(:, 2) = gamma;
 arrivalTimes(:, 3) = individual_kappas;
+
+
+
+% Save the time at which the two classes first lose contact in each
+% repeat
+if numClasses == 2 
+    lastContact = zeros(1,nRepeats);
+end
+
+% Save histogram for cluster measure for each of the two classes at every
+% 1000 timesteps. 
+nHistClustermeasure = 101;          % 100 bins for histogram => 100 edges.
+histClustermeasureSnapshots = [1,500,1000,1500,2000,2500,3000,3500,4000,4500,5000]; %Timesteps to take snapshots at. DIV 10 for trial. DELEtE for infinite dist runs
+
+% histClustermeasureSnapshots = [1,50,100,150,200,250,300,350,400,450,500];
+% Note these refer to the variable tSaveCount, not the actual time, as the
+% time iterates with random jumps.
+
+% I'm not certain whether the last one will save. The end of simulation
+% behaviour is still a bit foggy to me. I guess I can try running it.
+
+clustermeasureHist = zeros(length(histClustermeasureSnapshots), nHistClustermeasure - 1, numClasses);
+% Dim 1: Save 11 snapshots during the run
+% Dim 3: Separate histogram for each class
+
+
 
 
 %% Main body of simulation, loops over number of realisations.
@@ -248,6 +275,8 @@ for iRepeat = 1:nRepeats
     arrivedClass = [];                                                  % Class of individuals which have arrived.
     arrivedIDs = [];                                                    % IDs of individuals which have arrived.
     
+    contactCheck = 1;                                                   % Keep track of whether the two classes have lost contact yet
+    
     % Sample individual headings based on individual navigation skill
     for i = 1:nIndividuals
         heading(i) = circ_vmrnd(navigationField(position(i,1),position(i,2)), ...
@@ -284,7 +313,12 @@ for iRepeat = 1:nRepeats
        
         % Update the position of all individuals. Flow field is not used.
         if modulateSpeeds && sensingRange > 0
-            position = position + timeElapsed*modulatevelocity(position, runKappa, goalLocation, velocity, maxDist).*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
+            newSpeed = modulatevelocity(position, runKappa, goalLocation, velocity, maxDist);   % Column vector of speeds, modulated based on distance
+                                                                                                % from mean position.
+            newVelocity = newSpeed.*[cos(heading),sin(heading)];                                % Velocity of each agent after modulation.
+                                                                                                % Keep this, as we need it for the velocity saving.
+            
+            position = position + timeElapsed*newVelocity + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
         else
             position = position + velocity*timeElapsed*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
         end
@@ -318,7 +352,6 @@ for iRepeat = 1:nRepeats
         nArrivedNeighbours = numel(arrivedNeighbours);
         
         nNeighbours = nNeighbours + nArrivedNeighbours;
-        
         
         % Calculate sample heading based on inherent information/individual
         % skill only.
@@ -572,6 +605,28 @@ for page = 1:numClasses+1
 end
 
 
+% Save the clustermeasure (i.e. pairdistance) histograms for each class
+for page = 1:numClasses
+    % Only saving histogram for each class, none for whole population
+    class = populationStructure(page, 1); % In case there's only 1 class, which we are naming class 2
+    
+    clustermeasureHistogramCurrentClass = clustermeasureHist(:,:, page);
+    % It would be good to keep track of the times for each of the histogram
+    % snapshots.
+    snapshotTimes = 2*histClustermeasureSnapshots';
+    histogramForSaving = [snapshotTimes, clustermeasureHistogramCurrentClass];
+
+    % It would also be good to keep track of the bin edges for the
+    % histogram. This is a bit messy. Save bin edges as first row...
+
+    binEdges = linspace(0, 1000, nHistClustermeasure);
+    histogramForSaving = [binEdges; histogramForSaving];
+    
+    csvwrite(strcat(savePath, "pairdistanceHistogramClass" + class, fileTail), histogramForSaving);
+
+
+end
+
 % Save trajectories for repeat 1.
 % Add metadata as first two rows.
 posRow1 = individualIDs';
@@ -580,6 +635,12 @@ xPositionsIndividualsRep1 = [posRow1; posRow2; xPositionsIndividualsRep1];
 yPositionsIndividualsRep1 = [posRow1; posRow2; yPositionsIndividualsRep1];
 csvwrite(strcat(savePath, 'xPositionsIndividuals', fileTail), xPositionsIndividualsRep1);
 csvwrite(strcat(savePath, 'yPositionsIndividuals', fileTail), yPositionsIndividualsRep1);
+
+
+% Save the array of loss of contact times
+if numClasses == 2
+    csvwrite(strcat(savePath, 'lossOfContactTime', fileTail), lastContact)
+end
 
 
 
