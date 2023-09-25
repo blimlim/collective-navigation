@@ -17,7 +17,7 @@ function newSpeed = modulatevelocity(position, kappas, goalPosition, velocity, m
     scaleFactor = linearScalefactor(compToGoal, maxDist);                           % Calculate velocity reduction factor based on distance from mean
     scaleFactor(kappas < max(kappas)) = 1;                                          % Only scale down the faster class ? check if this makes any 
                                                                                     % improvements.
-    newvels = velocity * scaleFactor;
+    newSpeed = velocity * scaleFactor;
 end
 
 function velScaleFactors = linearScalefactor(compToGoal, maxdist)                    % Function for linear scaling of velocity 
