@@ -12,7 +12,7 @@ close all
 
 
 % Debugging
-rng(5)
+% rng(5)
 
 % Loop over slower class trustworthiness parameters
 for slowClassGamma = [1]
@@ -36,7 +36,7 @@ tEnd = 4000;               % Max run time if limitRun == true.
 
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-class1senseonly-v2/csvs/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-noisy/csvs/simpleNoise';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -85,18 +85,31 @@ cooperative = "target";    % Controls whether arrived whales stay in simulation 
 % Speed modulation settings
 modulateSpeeds = true;          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
                                 % Doesn't do anything if sensingRange == 0
-
-neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
-                                % in the velocity modulation.
-
-
-maxDist =  5;                   % Maximum distance from mean position (along axis towards goal). Past this distance, the whales stop.
-                                    % The smaller maxdist, the less the whales will
-                                    % spread along the axis towards goal. 
-                                    % Does nothing if modulateSpeeds is false.
                                 
-noisyModulation = false;        % Add noise to velocity modulation. Does nothing if modulateSpeeds is false.                            
-noise_SD = maxDist/5.;          % Controls width of noise whin modulating velocities. Does nothing if modulateSpeeds or noisyModulation are false
+maxDist =  50;                   % Maximum distance from mean position (along axis towards goal). Has different function when noisyModulation
+                                % is true or false. 
+                                % If noisyModulation is false:
+                                    % Past this distance, the whales stop.
+                                % If noisyModulation is true:
+                                    % Mean of normal distribution in logitnormal will be -d/maxDist
+                                    % where d is displacement along direction to goal of a given whale 
+                                    % from its' neighbours' mean. 
+                                
+neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
+                                 % in the velocity modulation.
+                                
+noisyModulation = "simple";        % Use probabalistic method to modulate velocities:
+                                    % Sample velocity scaling factors from a logit-normal distribution with mean shifting with discplacement 
+                                    % from neighbours and a specified normal standard deviation.
+                                    % Does nothing if modulateSpeeds == false. 
+                                % If modulateSpeeds == true and noisyModulation == false, velocity scaling factors will be taken from 
+                                % deterministic linear decay.
+
+noiseNormalSD = 0.5;            % Controls width of noise when modulating velocities. Does nothing if modulateSpeeds or noisyModulation are false
+
+normalMeanShift = 1;          % Sorry for adding so many parameters... It's getting a bit messy.
+                              % This shifts the normal distributions mean so that we don't get sudden decays 
+                              % in class 2 whale's velocities as soon as they pull in front. 
 
 % -------------------------------------------------------------------------
 
@@ -320,23 +333,30 @@ for iRepeat = 1:nRepeats
                 
                 if numel(neighbours) > 0                            % Only change speed when the whale has neighbours.
                     neighbourMeanPosition = mean(position(neighbours,:),1);
-                    newSpeeds(fasterAgent) = modulatevelocity2(position(fasterAgent,:), neighbourMeanPosition, goalLocation, velocity, maxDist);
+                    % Version using logitnormal samples for velocity:
+%                     newSpeeds(fasterAgent) = modulatevelocity2(position(fasterAgent,:), neighbourMeanPosition, goalLocation, velocity, maxDist, noisyModulation, noiseNormalSD, normalMeanShift);
+                    
+                    % Version for simple noise:
+                    newSpeeds(fasterAgent) = modulatevelocityNewNoise(position(fasterAgent,:), neighbourMeanPosition, goalLocation, velocity, maxDist, noisyModulation, noiseNormalSD, normalMeanShift);
+                    
+                    
+                    
                     % Debugging:
-                    if newSpeeds(fasterAgent) == 0 && norm(position(fasterAgent,:) - goalLocation) < 20  
-                        goalUnitVec = (goalLocation - position(fasterAgent,:))/norm(goalLocation - position(fasterAgent,:));
-    
-                        dispFromMean = position(fasterAgent, :) - neighbourMeanPosition;    % Displacement of current agent from neighbour mean.
-    
-                        compToGoal = dispFromMean * (goalUnitVec');
-                        
-                        %compToGoal
-                        %positionPlot(position, arrivedPosition, runClass, arrivedClass, "/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-class1senseonly/trajectoryFrames/debugframes/", t)
-                        if compToGoal < maxDist
-                            "compToGoal"
-                            compToGoal
-                            error('velocity zero yet not too far from neighbours')
-                        end
-                    end
+%                     if newSpeeds(fasterAgent) == 0 && norm(position(fasterAgent,:) - goalLocation) < 20  
+%                         goalUnitVec = (goalLocation - position(fasterAgent,:))/norm(goalLocation - position(fasterAgent,:));
+%     
+%                         dispFromMean = position(fasterAgent, :) - neighbourMeanPosition;    % Displacement of current agent from neighbour mean.
+%     
+%                         compToGoal = dispFromMean * (goalUnitVec');
+%                         
+%                         %compToGoal
+%                         %positionPlot(position, arrivedPosition, runClass, arrivedClass, "/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-class1senseonly/trajectoryFrames/debugframes/", t)
+%                         if compToGoal < maxDist
+%                             "compToGoal"
+%                             compToGoal
+%                             error('velocity zero yet not too far from neighbours')
+%                         end
+%                     end
                 else
                     newSpeeds(fasterAgent) = velocity;
                 end
@@ -564,8 +584,15 @@ effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));         % Me
 
 fileTailStart = sprintf('_distance_%d_range_%d', startDist, sensingRange);  % Save each variable to a csv. Keep track of run and 
                                                                             % population metadata in the filename.    
-if modulateSpeeds
+if modulateSpeeds 
     fileTailStart = strcat(fileTailStart, sprintf('modulatetrue_m%.2f',maxDist));
+    if noisyModulation ~= "off"
+        shiftsize = 0;
+        if noisyModulation == "logitnormal_1side"
+            shiftsize = normalMeanShift;
+        end
+        fileTailStart = strcat(fileTailStart, sprintf('_noise_%s_SD%.2f_shift%.2f', noisyModulation, noiseNormalSD, shiftsize));
+    end
 else
     fileTailStart = strcat(fileTailStart, 'modulatefalse');
 end
