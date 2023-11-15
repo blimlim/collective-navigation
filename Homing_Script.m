@@ -12,7 +12,7 @@ close all
 
 
 % Debugging
-% rng(5)
+rng(1)
 
 % Loop over slower class trustworthiness parameters
 for slowClassGamma = [1]
@@ -28,7 +28,7 @@ load('kappaCDFLookupTable.mat');                                % Load the looku
 % Run setup
 nRepeats = 1;              % Number of realisations of the model.
 nSavePoints = 501;         % Number of time points to save model output.`
-startDist = 1200;          % Initial distance from the target.
+startDist = 300;          % Initial distance from the target.
 runTime = 1;               % Mean reorientation time.
 tChunkSize = 1000;         % Size of chunks to break data into. When 
 limitRun = true;           % Stop run after maximum time? (Otherwise continue untill all arrived - may take long time or never finish)
@@ -36,7 +36,7 @@ tEnd = 4000;               % Max run time if limitRun == true.
 
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-noisy/csvs/simpleNoise';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/timing/TRUECONTROL';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -96,18 +96,29 @@ maxDist =  50;                   % Maximum distance from mean position (along ax
                                     % from its' neighbours' mean. 
                                 
 neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
-                                 % in the velocity modulation.
+                                 % in the velocity modulation. Does nothing if modulateSpeeds is false
                                 
-noisyModulation = "simple";        % Use probabalistic method to modulate velocities:
-                                    % Sample velocity scaling factors from a logit-normal distribution with mean shifting with discplacement 
-                                    % from neighbours and a specified normal standard deviation.
-                                    % Does nothing if modulateSpeeds == false. 
-                                % If modulateSpeeds == true and noisyModulation == false, velocity scaling factors will be taken from 
-                                % deterministic linear decay.
+% FOR THE CURRENT VECTORISED VERSION OF THE CODE, NOISY MODULATION HAS NOT BEEN IMPLEMENTED AND MUST BE SET TO OFF                                 
+noisyModulation = "off";        % Use probabalistic method to modulate velocities (does nothing if modulateSpeeds is false):
+                                   % Options:
+                                        %off ? don't use noise in velocity modulation step.
+                                        %simple ? linear modulation, then add normal noise and clip to [0,1]
+                                        %logitnormal_1side ?  Sample scaling factors from a logitnormal distribution.
+                                                            % For "1side" option, only do this when distance >0. This 
+                                                            % option allows for a nonzero shift in the normal mean
+                                                            % to counter sudden velocity reductions.
+                                                            % When distance < 0, this option sets the scaling 
+                                                            % factor to 1.
+                                        %logitnormal_2side ? % For "2side" option, sample scaling factors regardless of 
+                                                             % whether distance < 0 or not. 
+                                                             % For this option, I've forced it to use a 0 shift on the mean,
+                                                             % in spite of any provided value of normalMeanShift,
+                                                             % though this could be changed. 
+                                
 
 noiseNormalSD = 0.5;            % Controls width of noise when modulating velocities. Does nothing if modulateSpeeds or noisyModulation are false
 
-normalMeanShift = 1;          % Sorry for adding so many parameters... It's getting a bit messy.
+normalMeanShift = 0;          % Sorry for adding so many parameters... It's getting a bit messy.
                               % This shifts the normal distributions mean so that we don't get sudden decays 
                               % in class 2 whale's velocities as soon as they pull in front. 
 
@@ -158,6 +169,8 @@ for i = 1:size(populationStructure,1)
 end
 
 numClasses = size(populationStructure, 1);  % Used for saving class specific data.
+
+min_kappa = min(individual_kappas);
 
 individualIDs = [1:nIndividualsStart]';     % Keep track of individual ID's during run. Needed for the
                                             % arrival time matrix.
@@ -312,70 +325,73 @@ for iRepeat = 1:nRepeats
         timeElapsed = nextUpdate;                                           % Calculate time step length.
         t = t+nextUpdate;                                                   % Update time.
        
-        % POSITION UPDATE:  Update the position of all individuals. Flow field is not used.
+       % POSITION UPDATE:  Update the position of all individuals. Flow field is not used.
         % -----------------------------------------------------------------
         if modulateSpeeds && sensingRange > 0
-            newSpeeds = velocity * ones(nIndividuals, 1);                   % Columb vector of each agent's speeds.
+            newSpeeds = velocity * ones(nIndividuals, 1);                       % Column vector of each agent's speeds.
+                                                                                % Modulate velocity of each faster agent based on position
+                                                                                % relative to slow class neighbours.
+            indexList = 1:nIndividuals;
             
-                                                                            % Modulate velocity of each faster agent based on position
-                                                                            % relative to slow class neighbours.
-            for fasterAgent = find(runKappa == max(individual_kappas))'                
-                neighbours = find(pairDistances(fasterAgent,:)>0&pairDistances(fasterAgent,:)<sensingRangeField(position(fasterAgent,1),position(fasterAgent,2)));
-                
-                if neighboursToConsider == "slow"                           % Only consider position of slower class neighbours
-                    slowClassAgents = find(runKappa == min(individual_kappas));
-                    neighbours = intersect(neighbours, slowClassAgents);
+            fasterAgents = indexList(runKappa == max(individual_kappas));
+            
+            if numel(fasterAgents) > 0
+                sensingRangeMat = ones(numel(fasterAgents), nIndividuals);        % Matrix for sensing range fields 
+
+                for i = 1:numel(fasterAgents)
+                    sensingRangeMat(i,:) = sensingRangeField(position(fasterAgents(i),1),position(fasterAgents(i),2));
                 end
-                
-                
-                % THIS IS WRONG: slowClassNeighbours = find(runKappa(neighbours) == min(individual_kappas));
-                
-                
-                if numel(neighbours) > 0                            % Only change speed when the whale has neighbours.
-                    neighbourMeanPosition = mean(position(neighbours,:),1);
-                    % Version using logitnormal samples for velocity:
-%                     newSpeeds(fasterAgent) = modulatevelocity2(position(fasterAgent,:), neighbourMeanPosition, goalLocation, velocity, maxDist, noisyModulation, noiseNormalSD, normalMeanShift);
-                    
-                    % Version for simple noise:
-                    newSpeeds(fasterAgent) = modulatevelocityNewNoise(position(fasterAgent,:), neighbourMeanPosition, goalLocation, velocity, maxDist, noisyModulation, noiseNormalSD, normalMeanShift);
-                    
-                    
-                    
-                    % Debugging:
-%                     if newSpeeds(fasterAgent) == 0 && norm(position(fasterAgent,:) - goalLocation) < 20  
-%                         goalUnitVec = (goalLocation - position(fasterAgent,:))/norm(goalLocation - position(fasterAgent,:));
-%     
-%                         dispFromMean = position(fasterAgent, :) - neighbourMeanPosition;    % Displacement of current agent from neighbour mean.
-%     
-%                         compToGoal = dispFromMean * (goalUnitVec');
-%                         
-%                         %compToGoal
-%                         %positionPlot(position, arrivedPosition, runClass, arrivedClass, "/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/sensingRangeslowdown-class1senseonly/trajectoryFrames/debugframes/", t)
-%                         if compToGoal < maxDist
-%                             "compToGoal"
-%                             compToGoal
-%                             error('velocity zero yet not too far from neighbours')
-%                         end
-%                     end
-                else
-                    newSpeeds(fasterAgent) = velocity;
+
+
+                fastAgentPairDists = pairDistances(fasterAgents, :);
+
+                slowclassMat = repmat(runKappa' == min(individual_kappas), numel(fasterAgents),1 );
+
+                xPosMat = repmat(position(:,1)', numel(fasterAgents),1);
+                yPosMat = repmat(position(:,2)', numel(fasterAgents),1);
+
+
+
+                if neighboursToConsider == "all"
+                    neighbourMatrix = (fastAgentPairDists < sensingRangeMat) & (fastAgentPairDists > 0);
+                elseif neighboursToConsider == "slow"
+                    neighbourMatrix = (fastAgentPairDists < sensingRangeMat) & (fastAgentPairDists > 0) & slowclassMat;
                 end
-                
-               
+
+
+
+                neighbourxPosMat = xPosMat.*neighbourMatrix;
+                neighbourxPosMat(neighbourxPosMat == 0) = NaN;
+                neighbouryPosMat = yPosMat.*neighbourMatrix;
+                neighbouryPosMat(neighbouryPosMat == 0) = NaN;
+
+                neighbourMeanX = nanmean(neighbourxPosMat,2);
+                neighbourMeanY = nanmean(neighbouryPosMat,2); % Row j contains mean position of the jth faster agent's neighbours. 
+
+                % What happens to natural 0's though? hmmmm need to think.
+
+                neighbourMeanXY = [neighbourMeanX, neighbourMeanY];
+
+
+                fasterAgentPositions = position(fasterAgents, :);
+
+                newSpeeds(fasterAgents) = vectorModulatevel(fasterAgentPositions, neighbourMeanXY, goalLocation, velocity, maxDist);
             end
-            
             
             newVelocity = newSpeeds.*[cos(heading),sin(heading)];           % Velocity of each agent after modulation.
                                                                             % Keep this, as we need it for the velocity saving.
             
-            position = position + timeElapsed*newVelocity + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
+            position = position + timeElapsed*newVelocity + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)]; %newVelocity incorporates heading
      
         else
             position = position + velocity*timeElapsed*[cos(heading),sin(heading)] + flowField*flowVelocity*[cos(flowDirection),sin(flowDirection)];
         end
+        
+        
+        
+        
         pairDistanceUpdate;                                                 % Update pair distances for all pairs of individuals.
         pairDistances(1:nIndividuals+1:end) = 1e10;                         % Avoid influence of pairs of identical individuals.
-        
         
         % HEADING UPDATE: Update heading of agent currently reorienting
         % ---------------------------------------------------------------------
