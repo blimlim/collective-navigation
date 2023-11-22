@@ -26,9 +26,9 @@ concentrationParameters(tSaveCount,iRepeat, 1) = mean(concentrationIndividual); 
 
 
                                                                                     % Average effective velocity in direction of target:
-anglesToTarget = navigationField(position(:,1), position(:,2));                                            
+anglesToTarget = navigationFieldGoal(position(:,1), position(:,2));                                            
 vectorsToTarget = [cos(anglesToTarget), sin(anglesToTarget)];                  
-if modulateSpeeds == true
+if modulateSpeeds ~= "off"
     velocityVectors = newVelocity;
 else
     velocityVectors = velocity*[cos(heading), sin(heading)];                   
@@ -68,7 +68,7 @@ for i = 1:nIndividuals                                                          
         end
     end
     
-    diffDirection(i) = abs(heading(i)+pi - mod(navigationField(position(i,1),position(i,2))+pi,2*pi));           % Direction between heading and target.
+    diffDirection(i) = abs(heading(i)+pi - mod(navigationFieldGoal(position(i,1),position(i,2))+pi,2*pi));           % Direction between heading and target.
     if diffDirection(i) > pi
         diffDirection(i) = pi - mod(diffDirection(i),pi);
     end

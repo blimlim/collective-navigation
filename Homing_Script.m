@@ -28,15 +28,15 @@ load('kappaCDFLookupTable.mat');                                % Load the looku
 % Run setup
 nRepeats = 1;              % Number of realisations of the model.
 nSavePoints = 501;         % Number of time points to save model output.`
-startDist = 300;          % Initial distance from the target.
+startDist = 1000;          % Initial distance from the target.
 runTime = 1;               % Mean reorientation time.
 tChunkSize = 1000;         % Size of chunks to break data into. When 
 limitRun = true;           % Stop run after maximum time? (Otherwise continue untill all arrived - may take long time or never finish)
-tEnd = 4000;               % Max run time if limitRun == true.
+tEnd = 5000;               % Max run time if limitRun == true.
 
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/timing/TRUECONTROL';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/waypoints/csvs/absoluteDistModulation/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -79,12 +79,25 @@ cooperative = "target";    % Controls whether arrived whales stay in simulation 
                                 %     read as being exactly at the target
                                 %     (as opposed to their final
                                 %     positions).
-                                
+                               
 
+
+
+                                
+                                
 % -------------------------------------------------------------------------
 % Speed modulation settings
-modulateSpeeds = true;          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
+modulateSpeeds = "absoluteDistance";          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
                                 % Doesn't do anything if sensingRange == 0
+                                % Options: "off" - do not modulate speeds
+                                %          "goalAxis" - modulate speeds based on distance from neighbours in direction of the goal
+                                %          "absoluteDistance" - modulate speeds based on absolute distance from neighbours, 
+                                %                               applies only when agent is in front of neighbour mean position.
+                                
+                                
+if modulateSpeeds == "absoluteDistance"
+    warning(char("modulateSpeeds == 'absoluteDistance' currently only works when whales navigate in the negative x direction. If this is not the case, model will run but incorrectly"));
+end
                                 
 maxDist =  50;                   % Maximum distance from mean position (along axis towards goal). Has different function when noisyModulation
                                 % is true or false. 
@@ -98,7 +111,8 @@ maxDist =  50;                   % Maximum distance from mean position (along ax
 neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
                                  % in the velocity modulation. Does nothing if modulateSpeeds is false
                                 
-% FOR THE CURRENT VECTORISED VERSION OF THE CODE, NOISY MODULATION HAS NOT BEEN IMPLEMENTED AND MUST BE SET TO OFF                                 
+%% FOR THE CURRENT VECTORISED VERSION OF THE CODE, NOISY MODULATION HAS NOT BEEN IMPLEMENTED AND MUST BE SET TO OFF   
+
 noisyModulation = "off";        % Use probabalistic method to modulate velocities (does nothing if modulateSpeeds is false):
                                    % Options:
                                         %off ? don't use noise in velocity modulation step.
@@ -125,7 +139,9 @@ normalMeanShift = 0;          % Sorry for adding so many parameters... It's gett
 % -------------------------------------------------------------------------
 
     
-navigationField = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;    % Direction of target.
+navigationFieldGoal = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;    % Direction of target.
+navigationFieldWaypoint = @(whalex,whaley,waypointx,waypointy) atan2(waypointy - whaley, waypointx - whalex);   % Direction from specific whale to specific waypoint
+
 totalStepCountLoop = 0;         % Number of reorientation events.
 
 
@@ -175,6 +191,21 @@ min_kappa = min(individual_kappas);
 individualIDs = [1:nIndividualsStart]';     % Keep track of individual ID's during run. Needed for the
                                             % arrival time matrix.
 
+                                            
+% -------------------------------------------------------------------------
+% Waypoint settings
+
+% For now, place waypoints in straight line at equal distances between goal and start position
+
+proceedDistance = 20;                              % At what distance from a given waypoint should a whale change
+                                                    % target to the next waypoint. Likely to be an important parameter.
+                                                                                                        
+nWaypoints = 10;                                    % Number of waypoints including final goal
+startLocation = [startDist, 0];                     % CAREFUL: changing this has no impact on the actual start location. To fix...
+
+wayPointDist = norm((goalLocation - startLocation)/nWaypoints); % Distance between successive waypoints
+
+wayPoints = [1:nWaypoints]' * (goalLocation - startLocation)/nWaypoints + startLocation;    % Waypoint positions on successive rows
 
 
 
@@ -285,6 +316,8 @@ for iRepeat = 1:nRepeats
     runClass = classes;                                                     % Class (for each gamma and kappa pair) for each individual.
     runIDs = individualIDs;                                                 % ID for each individual.
     
+    runTargets = ones(nIndividuals, 1);                                     % Index of waypoint that each individual is currently targeting.
+    
     arrivedPosition = [];                                                   % Positions of agents which have reached target.
     arrivedGamma = [];                                                      % Weightings of individuals which have arrived.
     arrivedKappa = [];                                                      % Skill of individuals which have arrived.
@@ -295,10 +328,10 @@ for iRepeat = 1:nRepeats
     
                                                                             % Sample initial headings based on individual navigation skill
     for i = 1:nIndividuals
-        heading(i) = circ_vmrnd(navigationField(position(i,1),position(i,2)), ...
+        heading(i) = circ_vmrnd(navigationFieldWaypoint(position(i,1),position(i,2), wayPoints(runTargets(i), 1),wayPoints(runTargets(i),2) ), ...
             individual_kappas(i),1);
     end
-    
+%     navigationFieldWaypoint = @(whalex,whaley,waypointx,waypointy)
     
     % MAIN SIMULATION LOOP:
     % run until end of simulation or all individuals have arrived at the target.
@@ -327,7 +360,7 @@ for iRepeat = 1:nRepeats
        
        % POSITION UPDATE:  Update the position of all individuals. Flow field is not used.
         % -----------------------------------------------------------------
-        if modulateSpeeds && sensingRange > 0
+        if modulateSpeeds ~= "off" && sensingRange > 0
             newSpeeds = velocity * ones(nIndividuals, 1);                       % Column vector of each agent's speeds.
                                                                                 % Modulate velocity of each faster agent based on position
                                                                                 % relative to slow class neighbours.
@@ -371,11 +404,13 @@ for iRepeat = 1:nRepeats
                 % What happens to natural 0's though? hmmmm need to think.
 
                 neighbourMeanXY = [neighbourMeanX, neighbourMeanY];
+                
+                % NaN's in neighbourMeanXY occur when 
 
 
                 fasterAgentPositions = position(fasterAgents, :);
 
-                newSpeeds(fasterAgents) = vectorModulatevel(fasterAgentPositions, neighbourMeanXY, goalLocation, velocity, maxDist);
+                newSpeeds(fasterAgents) = vectorModulatevel(fasterAgentPositions, neighbourMeanXY, goalLocation, velocity, maxDist, modulateSpeeds);
             end
             
             newVelocity = newSpeeds.*[cos(heading),sin(heading)];           % Velocity of each agent after modulation.
@@ -395,6 +430,13 @@ for iRepeat = 1:nRepeats
         
         % HEADING UPDATE: Update heading of agent currently reorienting
         % ---------------------------------------------------------------------
+        
+        % Update target of nextAgent if necessary. Targets only used during reorientation, so only need to update the target fornextAgent.
+        %agentWaypointDist = norm(position(nextAgent,:) - wayPoints(runTargets(nextAgent),:));
+        agentWaypointxDist = abs(position(nextAgent,1) - wayPoints(runTargets(nextAgent),1));
+        if agentWaypointxDist < proceedDistance && runTargets(nextAgent) < nWaypoints
+            runTargets(nextAgent) = runTargets(nextAgent) + 1;
+        end
         
         neighbours = find(pairDistances(nextAgent,:)>0&pairDistances(nextAgent,:)<sensingRangeField(position(nextAgent,1),position(nextAgent,2)));
         nNeighbours = numel(neighbours);                                    % Number of individuals within perceptual range.
@@ -422,7 +464,7 @@ for iRepeat = 1:nRepeats
         
                                                                             % Calculate sample heading based on inherent information/individual
                                                                             % skill only.
-        potentialHeading = circ_vmrnd(navigationField(position(nextAgent,1),position(nextAgent,2)),...
+        potentialHeading = circ_vmrnd(navigationFieldWaypoint(position(nextAgent,1),position(nextAgent,2), wayPoints(runTargets(nextAgent), 1),wayPoints(runTargets(nextAgent),2) ),...
             individual_kappas(nextAgent),1);
         
                                                                             % Update heading based on other observed individuals if number of
@@ -527,6 +569,7 @@ for iRepeat = 1:nRepeats
         runGamma(removal) = [];                                             % Remove individuals from weightings.
         runClass(removal) = [];                                             % Remove individuals from classes.
         runKappa(removal) = [];                                             % Remove individuals from navigation skills.
+        runTargets(removal) = [];                                           % Remove targest from list
         runIDs(removal) = [];
         pairDistances(removal, :) = [];                                     % Remove individuals form pair distance matrix
         pairDistances(:, removal) = [];                                     %   - We need to do this in order to calculate neighbours
@@ -598,10 +641,10 @@ effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));         % Me
 
 
 
-fileTailStart = sprintf('_distance_%d_range_%d', startDist, sensingRange);  % Save each variable to a csv. Keep track of run and 
+fileTailStart = sprintf('_distance_%d_range_%d_nwaypoints_%d_proceeddist_%.2f', startDist, sensingRange, nWaypoints, proceedDistance);  % Save each variable to a csv. Keep track of run and 
                                                                             % population metadata in the filename.    
-if modulateSpeeds 
-    fileTailStart = strcat(fileTailStart, sprintf('modulatetrue_m%.2f',maxDist));
+if modulateSpeeds ~= "off"
+    fileTailStart = strcat(fileTailStart, sprintf('modulate_%s_m%.2f',modulateSpeeds, maxDist));
     if noisyModulation ~= "off"
         shiftsize = 0;
         if noisyModulation == "logitnormal_1side"
