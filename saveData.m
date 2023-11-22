@@ -82,12 +82,7 @@ meanNeighboursIncArrived(tSaveCount, iRepeat, 1) = mean(nNeighboursIncArrived(:,
 
 
 
-if numClasses == 2 && contactCheck == 1                                        % If two classes, save the time at which they first lose contact.
-    if classSpecificNeighbours(1, tSaveCount, iRepeat, 3) == 0             
-        lastContact(iRepeat) = t;
-        contactCheck = 0;                                       
-    end 
-end
+if
 
 
 
@@ -207,6 +202,15 @@ if iRepeat == 1                                                             % Tr
         xPositionsIndividualsRep1(tSaveCount, arrivedIDs) = arrivedPosition(:,1)';
         yPositionsIndividualsRep1(tSaveCount, arrivedIDs) = arrivedPosition(:,2)';
     end
+end
+
+
+
+if numClasses == 2 && contactCheck == 1                                        % If two classes, save the time at which they first lose contact.
+    if classSpecificNeighbours(1, tSaveCount, iRepeat, 3) == 0             
+        lastContact(iRepeat) = t;
+        contactCheck = 0;                                       
+    end 
 end
 
 
