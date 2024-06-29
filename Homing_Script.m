@@ -14,7 +14,7 @@ close all
 % Debugging
 rng(1)
 
-% Loop over slower class trustworthiness parameters
+% Loop over slower class trustworthiness parameters.
 for slowClassGamma = [1]
 slowClassGamma
 
@@ -23,15 +23,30 @@ for sensingRange = [50]
 sensingRange
 
 load('kappaCDFLookupTable.mat');                                % Load the lookup table for estimating the vM concentration parameter.
-%% User settings
-% -------------------------------------------------------------------------
+
+% #########################################################################
+% Start of user settings
+% #########################################################################
+
+
 % Run setup
 nRepeats = 1;              % Number of realisations of the model.
 nSavePoints = 501;         % Number of time points to save model output.`
 startDist = 1000;          % Initial distance from the target.
 runTime = 1;               % Mean reorientation time.
-tChunkSize = 1000;         % Size of chunks to break data into. When 
-limitRun = true;           % Stop run after maximum time? (Otherwise continue untill all arrived - may take long time or never finish)
+
+% Timing settings
+tChunkSize = 1000;         % Size of chunks to break data into.  There were a few simulations where we didn't know 
+                           % how long they would run for. The code was adapted so that the predefined arrays for saving 
+                           % simulation data could be expanded during simulations. 
+                           % 
+                           % Each time that a duration of tChunkSize (in simulation time) is covered,
+                           % nSavePoints-1 rows are added to each of the data saving matrices.
+
+
+limitRun = true;           % Stop the simulation after after a maximum time? 
+                           % (Otherwise it will continue untill all arrived - may take a long time or never finish)
+                           
 tEnd = 5000;               % Max run time if limitRun == true.
 
 
@@ -40,29 +55,17 @@ savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_exp
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
-flowField = 0;                  % Flow field (unused).
-flowDirection = 0;              % Flow direction (unused).
-flowVelocity = 0;               % Flow velocity (unused).
 
 
-
-cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %Define colormap.
-
-domainWidth = 400;              % Width of the domain. SW: Not used
-domainHeight = 300;             % Height of the domain.    SW: Not used
 velocity = 1;                   % Default speed of individuals.
-
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
 goalDistance = 10;              % Distance from goal to be counted as "arrived".
-noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
-    
 goalLocation = [0,0];           % Location of target.
-holeLocation = [125,175];       % Location of information void.
+
 
 backgroundStrength = 1;         % Background information level.
-repulsionDistance = 0;          % Repulsion mechanism (unused).
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
 
 
@@ -82,27 +85,26 @@ cooperative = "target";    % Controls whether arrived whales stay in simulation 
                                
 
 
-
-                                
                                 
 % -------------------------------------------------------------------------
 % Speed modulation settings
-modulateSpeeds = "absoluteDistance";          % Reduce speeds of whales closer to the target than the mean, via the modulatevelocity script
-                                % Doesn't do anything if sensingRange == 0
-                                % Options: "off" - do not modulate speeds
-                                %          "goalAxis" - modulate speeds based on distance from neighbours in direction of the goal
-                                %          "absoluteDistance" - modulate speeds based on absolute distance from neighbours, 
-                                %                               applies only when agent is in front of neighbour mean position.
+modulateSpeeds = "absoluteDistance";    % Reduce speeds of whales closer to the target than the mean of their neighbours positions,
+                                        % via the modulatevelocity script.
+                                        % Has no effect if sensingRange == 0
+                                        % Options: "off" - do not modulate speeds
+                                        %          "goalAxis" - modulate speeds based on distance from neighbours in direction of the goal
+                                        %          "absoluteDistance" - modulate speeds based on absolute distance from neighbours, 
+                                        %                               applies only when agent is in front of neighbour mean position.
                                 
                                 
 if modulateSpeeds == "absoluteDistance"
     warning(char("modulateSpeeds == 'absoluteDistance' currently only works when whales navigate in the negative x direction. If this is not the case, model will run but incorrectly"));
 end
                                 
-maxDist =  50;                   % Maximum distance from mean position (along axis towards goal). Has different function when noisyModulation
+maxDist =  100;                 % Maximum distance from mean position (along axis towards goal). Has different function when noisyModulation
                                 % is true or false. 
                                 % If noisyModulation is false:
-                                    % Past this distance, the whales stop.
+                                % Past this distance, the whales stop.
                                 % If noisyModulation is true:
                                     % Mean of normal distribution in logitnormal will be -d/maxDist
                                     % where d is displacement along direction to goal of a given whale 
@@ -208,6 +210,21 @@ wayPointDist = norm((goalLocation - startLocation)/nWaypoints); % Distance betwe
 wayPoints = [1:nWaypoints]' * (goalLocation - startLocation)/nWaypoints + startLocation;    % Waypoint positions on successive rows
 
 
+
+% Currently unused settings
+cbar = [linspace(40,115,20)',linspace(36,213,20)',linspace(108,236,20)']/255; %Define colormap.
+domainWidth = 400;              % Width of the domain. SW: Not used
+domainHeight = 300;             % Height of the domain.    SW: Not used
+noiseWavelength = 6;            % Frequency of noise structure in the Brownian noise field only.
+repulsionDistance = 0;          % Repulsion mechanism (unused).
+holeLocation = [125,175];       % Location of information void.
+flowField = 0;                  % Flow field (unused).
+flowDirection = 0;              % Flow direction (unused).
+flowVelocity = 0;               % Flow velocity (unused).
+
+% #########################################################################
+% End of user settings
+% #########################################################################
 
 
 %% Set up matrices for saving data
@@ -359,24 +376,31 @@ for iRepeat = 1:nRepeats
         t = t+nextUpdate;                                                   % Update time.
        
        % POSITION UPDATE:  Update the position of all individuals. Flow field is not used.
-        % -----------------------------------------------------------------
+       %                   Modulate the speeds of the better navigators if required.
+       % -----------------------------------------------------------------
         if modulateSpeeds ~= "off" && sensingRange > 0
+            
+            % Unfortunately I had to vectorize the velocity modulation calculation
+            % to make it faster to run. It makes it harder to read though.
+            
             newSpeeds = velocity * ones(nIndividuals, 1);                       % Column vector of each agent's speeds.
                                                                                 % Modulate velocity of each faster agent based on position
                                                                                 % relative to slow class neighbours.
             indexList = 1:nIndividuals;
             
-            fasterAgents = indexList(runKappa == max(individual_kappas));
+            fasterAgents = indexList(runKappa == max(individual_kappas));       % Faster agents are those with higher skill (kappa)
             
             if numel(fasterAgents) > 0
-                sensingRangeMat = ones(numel(fasterAgents), nIndividuals);        % Matrix for sensing range fields 
-
+                sensingRangeMat = ones(numel(fasterAgents), nIndividuals);       % Matrix where ith row is the sensing range for the 
+                                                                                 % ith fasterAgent. For our simulations this will be 
+                                                                                 % constant everywhere, but code is set up to allow for 
+                                                                                 % spatially varying sensign ranges.
                 for i = 1:numel(fasterAgents)
                     sensingRangeMat(i,:) = sensingRangeField(position(fasterAgents(i),1),position(fasterAgents(i),2));
                 end
 
 
-                fastAgentPairDists = pairDistances(fasterAgents, :);
+                fastAgentPairDists = pairDistances(fasterAgents, :);            % ith row is distances of each whale from the ith fasterAgent
 
                 slowclassMat = repmat(runKappa' == min(individual_kappas), numel(fasterAgents),1 );
 
@@ -384,12 +408,13 @@ for iRepeat = 1:nRepeats
                 yPosMat = repmat(position(:,2)', numel(fasterAgents),1);
 
 
-
+                % Set up a matrix to specify which whales are neighbours of each of the fasterAgents.
                 if neighboursToConsider == "all"
                     neighbourMatrix = (fastAgentPairDists < sensingRangeMat) & (fastAgentPairDists > 0);
                 elseif neighboursToConsider == "slow"
                     neighbourMatrix = (fastAgentPairDists < sensingRangeMat) & (fastAgentPairDists > 0) & slowclassMat;
                 end
+                 
 
 
 
@@ -405,7 +430,8 @@ for iRepeat = 1:nRepeats
 
                 neighbourMeanXY = [neighbourMeanX, neighbourMeanY];
                 
-                % NaN's in neighbourMeanXY occur when 
+                % NaN's in neighbourMeanXY occur when a given faster agent has no neighbours. 
+                % This is handled in vectorModulateVel, where the agent's newSpeed is set to 1. 
 
 
                 fasterAgentPositions = position(fasterAgents, :);
@@ -431,7 +457,8 @@ for iRepeat = 1:nRepeats
         % HEADING UPDATE: Update heading of agent currently reorienting
         % ---------------------------------------------------------------------
         
-        % Update target of nextAgent if necessary. Targets only used during reorientation, so only need to update the target fornextAgent.
+        % Update target of nextAgent if necessary. Targets only used during reorientation, so only need to update the target for nextAgent.
+        
         %agentWaypointDist = norm(position(nextAgent,:) - wayPoints(runTargets(nextAgent),:));
         agentWaypointxDist = abs(position(nextAgent,1) - wayPoints(runTargets(nextAgent),1));
         if agentWaypointxDist < proceedDistance && runTargets(nextAgent) < nWaypoints
@@ -578,9 +605,10 @@ for iRepeat = 1:nRepeats
         nIndividuals = nIndividuals - numel(removal);                       % Number of individuals remaining.
         
         
-        
-        if t >= tMax                                                        % Add a new chunk of space to data matrices if 
-                                                                            % t exceeds prealocated size.
+        % Add space to data saving matrices if 
+        % t exceeds prealocated size.
+        if t >= tMax                                                       
+                                                                           
             t
             tSave = [tSave, linspace(tMax + 2,tMax + tChunkSize,nSavePoints -1)];   % Sort of set up for the nSavePoints = 1000, tSave = 501 case...
             
