@@ -11,7 +11,7 @@ clear all
 close all
 
 
-% Debugging
+% Debugging - setting seed to reproduce simulations.
 rng(1)
 
 % Loop over slower class trustworthiness parameters.
@@ -71,30 +71,39 @@ alignDistance = sensingRange;   % Alignment distance (always = sensing range).
 
 cooperative = "target";    % Controls whether arrived whales stay in simulation and signal location.
                                 % cooperative = "off":
-                                %     individuals which arrive at target
+                                %     Individuals which arrive at target
                                 %     are removed from the simulation.
                                 %     They are ignored in the reorientation
                                 %     calculations of remaining agents.
                                 
                                 % cooperative = "target":
-                                %     Same as cooperative = "individuals",
-                                %     however arrived agents' positions are
-                                %     read as being exactly at the target
-                                %     (as opposed to their final
-                                %     positions).
+                                %     Keep track of the number of whales which 
+                                %     have arrived at the target. If n whales 
+                                %     have arrived, and whale j is within 
+                                %     sensingRange of the target, it will 
+                                %     observe n headings pointing directly
+                                %     at the target. 
+                                
+                                %     This setting was introduced to fix confused 
+                                %     headings near the end of the simulations,
+                                %     though is not relevant for "infinite
+                                %     distance" experiments.
                                
 
 
                                 
 % -------------------------------------------------------------------------
 % Speed modulation settings
-modulateSpeeds = "absoluteDistance";    % Reduce speeds of whales closer to the target than the mean of their neighbours positions,
-                                        % via the modulatevelocity script.
+modulateSpeeds = "absoluteDistance";    % Reduce speeds of whales which are closer to the target than their neighbors,
+                                        % determined by the mean of their neighbours positions.
+                                        % Implemented inthe modulatevelocity script.
                                         % Has no effect if sensingRange == 0
                                         % Options: "off" - do not modulate speeds
                                         %          "goalAxis" - modulate speeds based on distance from neighbours in direction of the goal
                                         %          "absoluteDistance" - modulate speeds based on absolute distance from neighbours, 
                                         %                               applies only when agent is in front of neighbour mean position.
+                                        %                               Note that this currently only works when navigation is in the 
+                                        %                               negative x direction. It would be good to fix this in vectorModulateVel.m
                                 
                                 
 if modulateSpeeds == "absoluteDistance"
@@ -113,30 +122,7 @@ maxDist =  100;                 % Maximum distance from mean position (along axi
 neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
                                  % in the velocity modulation. Does nothing if modulateSpeeds is false
                                 
-%% FOR THE CURRENT VECTORISED VERSION OF THE CODE, NOISY MODULATION HAS NOT BEEN IMPLEMENTED AND MUST BE SET TO OFF   
 
-noisyModulation = "off";        % Use probabalistic method to modulate velocities (does nothing if modulateSpeeds is false):
-                                   % Options:
-                                        %off ? don't use noise in velocity modulation step.
-                                        %simple ? linear modulation, then add normal noise and clip to [0,1]
-                                        %logitnormal_1side ?  Sample scaling factors from a logitnormal distribution.
-                                                            % For "1side" option, only do this when distance >0. This 
-                                                            % option allows for a nonzero shift in the normal mean
-                                                            % to counter sudden velocity reductions.
-                                                            % When distance < 0, this option sets the scaling 
-                                                            % factor to 1.
-                                        %logitnormal_2side ? % For "2side" option, sample scaling factors regardless of 
-                                                             % whether distance < 0 or not. 
-                                                             % For this option, I've forced it to use a 0 shift on the mean,
-                                                             % in spite of any provided value of normalMeanShift,
-                                                             % though this could be changed. 
-                                
-
-noiseNormalSD = 0.5;            % Controls width of noise when modulating velocities. Does nothing if modulateSpeeds or noisyModulation are false
-
-normalMeanShift = 0;          % Sorry for adding so many parameters... It's getting a bit messy.
-                              % This shifts the normal distributions mean so that we don't get sudden decays 
-                              % in class 2 whale's velocities as soon as they pull in front. 
 
 % -------------------------------------------------------------------------
 
@@ -673,13 +659,6 @@ fileTailStart = sprintf('_distance_%d_range_%d_nwaypoints_%d_proceeddist_%.2f', 
                                                                             % population metadata in the filename.    
 if modulateSpeeds ~= "off"
     fileTailStart = strcat(fileTailStart, sprintf('modulate_%s_m%.2f',modulateSpeeds, maxDist));
-    if noisyModulation ~= "off"
-        shiftsize = 0;
-        if noisyModulation == "logitnormal_1side"
-            shiftsize = normalMeanShift;
-        end
-        fileTailStart = strcat(fileTailStart, sprintf('_noise_%s_SD%.2f_shift%.2f', noisyModulation, noiseNormalSD, shiftsize));
-    end
 else
     fileTailStart = strcat(fileTailStart, 'modulatefalse');
 end
