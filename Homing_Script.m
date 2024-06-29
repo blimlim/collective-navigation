@@ -61,9 +61,9 @@ velocity = 1;                   % Default speed of individuals.
 alpha = 10/20;                  % Weighting of observations for heading calculation.
 beta = 10/20;                   % Weighting of observations for concentration calculation.
 
+
 goalDistance = 10;              % Distance from goal to be counted as "arrived".
 goalLocation = [0,0];           % Location of target.
-
 
 backgroundStrength = 1;         % Background information level.
 alignDistance = sensingRange;   % Alignment distance (always = sensing range).
@@ -790,6 +790,20 @@ csvwrite(strcat(savePath, 'yPositionsIndividuals', fileTail), yPositionsIndividu
 if numClasses == 2
     csvwrite(strcat(savePath, 'lossOfContactTime', fileTail), lastContact)
 end
+
+
+
+
+% Save the data
+fileTail = sprintf('_range_%d.csv', sensingRange);                          % SW: Keep track of range parameter for saved data
+savePath = '../reproduce_fig_2/csv_pairdist_fixed/';
+csvwrite(strcat(savePath, 'xPosition', fileTail), xPositionMean);                     % SW: Save the above matrices for combined plots
+csvwrite(strcat(savePath, 'clusterMeasure', fileTail), clusterMeasure);
+csvwrite(strcat(savePath, 'distanceToGoal', fileTail), distanceToGoal);
+csvwrite(strcat(savePath, 'meanNeighbours', fileTail), meanNeighbours);
+csvwrite(strcat(savePath, 'meanDifferenceDirection', fileTail), meanDifferenceDirection);
+csvwrite(strcat(savePath, 'nIndividualsRemaining', fileTail), nIndividualsRemaining);
+csvwrite(strcat(savePath, 'direction_Histogram', fileTail), directionHist);
 
 
 
