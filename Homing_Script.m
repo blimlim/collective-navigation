@@ -531,7 +531,7 @@ for iRepeat = 1:nRepeats
             navField = navigationFieldGoal(position(nextAgent,1), position(nextAgent,2));
         end
         % Calculate sample heading based on inherent information/individual% skill only.
-        potentialHeading = circ_vmrnd(navField, individual_kappas(i),1);
+        potentialHeading = circ_vmrnd(navField, individual_kappas(nextAgent),1);
         
                                                                             % Update heading based on other observed individuals if number of
                                                                             % neighbours exceeds zero.
