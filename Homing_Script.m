@@ -15,8 +15,7 @@ close all
 rng(1)
 
 % Loop over slower class trustworthiness parameters.
-for slowClassGamma = [1]
-slowClassGamma
+
 
 % Loop over sensing ranges
 for sensingRange = [50]
@@ -110,39 +109,41 @@ if modulateSpeeds == "absoluteDistance"
     warning(char("modulateSpeeds == 'absoluteDistance' currently only works when whales navigate in the negative x direction. If this is not the case, model will run but incorrectly"));
 end
                                 
-maxDist =  100;                 % Maximum distance from mean position (along axis towards goal). Has different function when noisyModulation
-                                % is true or false. 
-                                % If noisyModulation is false:
-                                % Past this distance, the whales stop.
-                                % If noisyModulation is true:
-                                    % Mean of normal distribution in logitnormal will be -d/maxDist
-                                    % where d is displacement along direction to goal of a given whale 
-                                    % from its' neighbours' mean. 
+maxDist =  100;                 % Maximum distance from mean position (along axis towards goal). 
+                                % A whale will stop moving if its distance from its neighbours is 
+                                % greater than maxDist.
                                 
-neighboursToConsider = "slow";   % Either "slow" or "all". Whether to consider position of only slower class neighbours, or all neighbours
-                                 % in the velocity modulation. Does nothing if modulateSpeeds is false
-                                
-
-
-% -------------------------------------------------------------------------
-
-    
-navigationFieldGoal = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;    % Direction of target.
-navigationFieldWaypoint = @(whalex,whaley,waypointx,waypointy) atan2(waypointy - whaley, waypointx - whalex);   % Direction from specific whale to specific waypoint
-
-totalStepCountLoop = 0;         % Number of reorientation events.
-
+neighboursToConsider = "slow";   % Either "slow" or "all". 
+                                 % "slow": A whale will only consider the positions of its slower class 
+                                 %         neighbours in the velocity modulation algorithm.
+                                 % "all" : A whale will consider all neighbour's positions in the 
+                                 %         velocity modulation algorithm.
 
 % -------------------------------------------------------------------------
 % Population structure settings
 
-% Population data held in matrix of form:
-% [[class 1 ID, class 1 gamma, class 1 kappa, class 1 n]; 
-% [class 2 ID, class 2 gamma, class 2 kappa, class 2 n]]
+% When splitting the population into two classes, we need to set 1. the trustworthiness (gamma),
+% and 2. The navigation skill (kappa), of each class. 
+
+% Note that only the ratio (gamma_1/gamma_2) matters in a simulation, and hence the 
+% convention is to set gamma_1, and leave gamma_2 fixed at a value of 1.
+
+% When changing the skill parameter's 'kappa', we need to ensure that the 
+% population average speed towards the target does not change, in order to allow
+% fair comparisons between different experiments (e.g. consider the case where we 
+% have one population with a single skill group with kappa = 1, and another population with 
+% two skill groups with kappa = 5 and 10 respectively. In the inhomogeneous population, 
+% all the whales are better navigators in general, and hence we couldn't fairly 
+% examine the impacts of the inhomogeneity on navigation performance.
+
+% In practice then, we set kappa_1 for the first population group, and then 
+% solve for kappa_2 which retains the same population average navigation performance.
+
+
 
 nIndividualsStart = 100;                            % Total population size
 
-gamma_1 = slowClassGamma;                           % Trustworthiness of class 1
+gamma_1 = 1;                                        % Trustworthiness of class 1
 kappa_1 = 0.5;                                      % Navigation skill of class 1.
 n_1 = 50;                                           % Number of individuals in class 1.
 delta = n_1/nIndividualsStart;                      % Fraction of population in class 1.
@@ -156,33 +157,18 @@ kappa_2                                             % Print out the error betwee
 err                                                 % parameters and the effective velocity of the uniform population with
                                                     % kappa = 1.
 
+ 
+% Now save the population parameters in a matrix to be used during simulations.                                                    
+% Population data held in matrix of form:
+% [[class 1 ID, class 1 gamma, class 1 kappa, class 1 n]; 
+% [class 2 ID, class 2 gamma, class 2 kappa, class 2 n]]                                               
                                 
 populationStructure = [[1, gamma_1, kappa_1, n_1];  % Matrix to hold population information
                        [2, gamma_2, kappa_2, n_2]];
 
-% Set up vectors to keep track of individual's class, trustworthiness, and
-% individual skill during the runs.
-classes = [];                        % Keep track of individual class during run
-gamma = [];                          % Keep track of individual trustworthiness during run.
-individual_kappas = [];              % Keep track of individual navigation skills during run.
-
-for i = 1:size(populationStructure,1)
-    classes = [classes; populationStructure(i,1) * ones(populationStructure(i,4),1)];
-    gamma = [gamma; populationStructure(i,2) * ones(populationStructure(i,4),1)];
-    individual_kappas = [individual_kappas; populationStructure(i,3) * ones(populationStructure(i,4),1)];
-end
-
-numClasses = size(populationStructure, 1);  % Used for saving class specific data.
-
-min_kappa = min(individual_kappas);
-
-individualIDs = [1:nIndividualsStart]';     % Keep track of individual ID's during run. Needed for the
-                                            % arrival time matrix.
-
                                             
 % -------------------------------------------------------------------------
 % Waypoint settings
-
 % For now, place waypoints in straight line at equal distances between goal and start position
 
 proceedDistance = 20;                              % At what distance from a given waypoint should a whale change
@@ -211,9 +197,38 @@ flowVelocity = 0;               % Flow velocity (unused).
 % #########################################################################
 % End of user settings
 % #########################################################################
+% Start of simulaion initialisation.
+% #########################################################################
+
+% Set up vectors to keep track of each individual's class, trustworthiness, and
+% individual skill during the runs.
+classes = [];                        % Keep track of individual class during run
+gamma = [];                          % Keep track of individual trustworthiness during run.
+individual_kappas = [];              % Keep track of individual navigation skills during run.
+
+for i = 1:size(populationStructure,1)
+    classes = [classes; populationStructure(i,1) * ones(populationStructure(i,4),1)];
+    gamma = [gamma; populationStructure(i,2) * ones(populationStructure(i,4),1)];
+    individual_kappas = [individual_kappas; populationStructure(i,3) * ones(populationStructure(i,4),1)];
+end
+
+numClasses = size(populationStructure, 1);  % Used for saving class specific data.
+
+min_kappa = min(individual_kappas);
+
+individualIDs = [1:nIndividualsStart]';     % Keep track of individual ID's during run. Needed for the
+                                            % arrival time matrix.
 
 
-%% Set up matrices for saving data
+
+    
+navigationFieldGoal = @(x,y) atan2(goalLocation(2)-y,goalLocation(1)-x) ;    % Direction of target.
+navigationFieldWaypoint = @(whalex,whaley,waypointx,waypointy) atan2(waypointy - whaley, waypointx - whalex);   % Direction from specific whale to specific waypoint
+
+totalStepCountLoop = 0;         % Number of reorientation events.
+
+% -------------------------------------------------------------------------
+% Set up matrices for saving data
 
 % These will grow as required if the runs take longer.
 finalTime = zeros(nRepeats, numClasses + 1);                                    % Time for all individuals to arrive at the goal.
@@ -654,9 +669,10 @@ meanNeighboursIncArrived = squeeze(mean(meanNeighboursIncArrived, 2));      % Me
 effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));         % Mean effective velocity in target direction.
 
 
+% Place simulation parameters in the file names
 
-fileTailStart = sprintf('_distance_%d_range_%d_nwaypoints_%d_proceeddist_%.2f', startDist, sensingRange, nWaypoints, proceedDistance);  % Save each variable to a csv. Keep track of run and 
-                                                                            % population metadata in the filename.    
+fileTailStart = sprintf('_distance_%d_range_%d_nwaypoints_%d_proceeddist_%.2f', startDist, sensingRange, nWaypoints, proceedDistance);  
+
 if modulateSpeeds ~= "off"
     fileTailStart = strcat(fileTailStart, sprintf('modulate_%s_m%.2f',modulateSpeeds, maxDist));
 else
@@ -682,10 +698,7 @@ tableSaver(distanceToGoalAll, 'distanceToGoalAll', populationStructure, fileTail
 tableSaver(meanNeighboursIncArrived, 'meanNeighboursIncArrived', populationStructure, fileTail, savePath, numClasses);
 tableSaver(effectiveVelocity, 'meanEffectiveVelocity', populationStructure, fileTail, savePath, numClasses);
 
-% Now save all of the other matrices which aren't in the standard form.
-
-
-
+% Now save all of the other matrices which aren't in the above "standard" form.
 classSpecificNeighbours = squeeze(mean(classSpecificNeighbours, 3, 'omitnan'));  % Save the class specific neighbours.
                                                                                  % Average over the repeats. dim 3 is the dimension for the repeats. 
 % There seems to be a bug when there is only one class, is it averaging
@@ -794,8 +807,6 @@ end
 
 
 
-
-end
 
 
 
