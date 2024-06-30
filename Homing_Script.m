@@ -31,7 +31,7 @@ load('kappaCDFLookupTable.mat');                                % Load the looku
 % Run setup
 nRepeats = 1;              % Number of realisations of the model.
 nSavePoints = 501;         % Number of time points to save model output.`
-startDist = 1000;          % Initial distance from the target.
+startDist = 300;           % Initial distance from the target.
 runTime = 1;               % Mean reorientation time.
 
 % Timing settings
@@ -50,7 +50,7 @@ tEnd = 5000;               % Max run time if limitRun == true.
 
 
 % Path for output csv's. 
-savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/waypoints/csvs/absoluteDistModulation/';
+savePath = '/Users/boppin/Documents/work/Whales/collective-navigation-2/misc_experiments/cleaning_up/waypoint_switch_added/';
 
 backgroundFieldType = 'Fixed';   % Choose type of background field, choice of 'Void', 'Fixed','Random','Void', 'Increasing', 'Decreasing', 'Brownian'.
 noiseInfluence = 'Information'; % Choose type of noise influence either 'Information' or 'Range'. All results generated with 'Information' except for F9.
@@ -169,10 +169,27 @@ populationStructure = [[1, gamma_1, kappa_1, n_1];  % Matrix to hold population 
                                             
 % -------------------------------------------------------------------------
 % Waypoint settings
+
 % For now, place waypoints in straight line at equal distances between goal and start position
 
-proceedDistance = 20;                              % At what distance from a given waypoint should a whale change
+useWaypoints = false;                               % Choose whether to navigate towards the target using intermediate waypoints.
+
+% The following settings only matter if useWaypoints == true:
+
+proceedDistance = 20;                               % At what distance from a given waypoint should a whale change
                                                     % target to the next waypoint. Likely to be an important parameter.
+
+proceedMethod = "xAxis";                            % Either "xAxis" or "absoluteDistance": 
+                                                        % "xAxis": A whale will change target to the next waypoint when 
+                                                        %           its distance from the current target along the x axis is less than 
+                                                        %`          proceedDistance. Only makes sense when navigation is along x axis.
+                                                        
+                                                        % "absoluteDistance": A whale will change target to the next waypoint when 
+                                                        %           its absolute distance from the current target is less than 
+                                                        %`          proceedDistance. More flexible than "xAxis" in terms of navigation paths.
+                                                            
+                    
+    
                                                                                                         
 nWaypoints = 10;                                    % Number of waypoints including final goal
 startLocation = [startDist, 0];                     % CAREFUL: changing this has no impact on the actual start location. To fix...
@@ -197,6 +214,9 @@ flowVelocity = 0;               % Flow velocity (unused).
 % #########################################################################
 % End of user settings
 % #########################################################################
+
+
+
 % Start of simulaion initialisation.
 % #########################################################################
 
@@ -346,10 +366,13 @@ for iRepeat = 1:nRepeats
     
                                                                             % Sample initial headings based on individual navigation skill
     for i = 1:nIndividuals
-        heading(i) = circ_vmrnd(navigationFieldWaypoint(position(i,1),position(i,2), wayPoints(runTargets(i), 1),wayPoints(runTargets(i),2) ), ...
-            individual_kappas(i),1);
+        if useWaypoints == true
+            navField = navigationFieldWaypoint(position(i,1),position(i,2), wayPoints(runTargets(i), 1),wayPoints(runTargets(i),2));
+        else 
+            navField = navigationFieldGoal(position(i,1), position(i,2));
+        end
+        heading(i) = circ_vmrnd(navField, individual_kappas(i),1);
     end
-%     navigationFieldWaypoint = @(whalex,whaley,waypointx,waypointy)
     
     % MAIN SIMULATION LOOP:
     % run until end of simulation or all individuals have arrived at the target.
@@ -458,14 +481,23 @@ for iRepeat = 1:nRepeats
         % HEADING UPDATE: Update heading of agent currently reorienting
         % ---------------------------------------------------------------------
         
-        % Update target of nextAgent if necessary. Targets only used during reorientation, so only need to update the target for nextAgent.
-        
-        %agentWaypointDist = norm(position(nextAgent,:) - wayPoints(runTargets(nextAgent),:));
-        agentWaypointxDist = abs(position(nextAgent,1) - wayPoints(runTargets(nextAgent),1));
-        if agentWaypointxDist < proceedDistance && runTargets(nextAgent) < nWaypoints
-            runTargets(nextAgent) = runTargets(nextAgent) + 1;
+        % Update the nextAgent's target if necessary. Targets only used during reorientation, so only need to update the target for nextAgent.
+        if useWaypoints == true
+            if proceedMethod == "xAxis"
+                agentWaypointDist = abs(position(nextAgent,1) - wayPoints(runTargets(nextAgent),1));
+            elseif proceedMethod == "absoluteDistance"
+               agentWaypointDist = norm(position(nextAgent,:) - wayPoints(runTargets(nextAgent),:)); 
+            else 
+                error("proceedMethod : " + proceedMethod + "not recognized.")
+            end
+                
+            if agentWaypointDist < proceedDistance && runTargets(nextAgent) < nWaypoints
+                runTargets(nextAgent) = runTargets(nextAgent) + 1;
+            end
+        else
+            
         end
-        
+
         neighbours = find(pairDistances(nextAgent,:)>0&pairDistances(nextAgent,:)<sensingRangeField(position(nextAgent,1),position(nextAgent,2)));
         nNeighbours = numel(neighbours);                                    % Number of individuals within perceptual range.
         [minDistance,closestAgent] = min(pairDistances(nextAgent,:));       % Find closest agent.
@@ -492,8 +524,14 @@ for iRepeat = 1:nRepeats
         
                                                                             % Calculate sample heading based on inherent information/individual
                                                                             % skill only.
-        potentialHeading = circ_vmrnd(navigationFieldWaypoint(position(nextAgent,1),position(nextAgent,2), wayPoints(runTargets(nextAgent), 1),wayPoints(runTargets(nextAgent),2) ),...
-            individual_kappas(nextAgent),1);
+        % Calculate angle from nextAgent to its current target (either waypoint or final goal)
+        if useWaypoints == true
+            navField = navigationFieldWaypoint(position(nextAgent,1),position(nextAgent,2), wayPoints(runTargets(nextAgent), 1),wayPoints(runTargets(nextAgent),2));
+        else 
+            navField = navigationFieldGoal(position(nextAgent,1), position(nextAgent,2));
+        end
+        % Calculate sample heading based on inherent information/individual% skill only.
+        potentialHeading = circ_vmrnd(navField, individual_kappas(i),1);
         
                                                                             % Update heading based on other observed individuals if number of
                                                                             % neighbours exceeds zero.
@@ -671,7 +709,14 @@ effectiveVelocity = squeeze(mean(effectiveVelocity, 2, 'omitnan'));         % Me
 
 % Place simulation parameters in the file names
 
-fileTailStart = sprintf('_distance_%d_range_%d_nwaypoints_%d_proceeddist_%.2f', startDist, sensingRange, nWaypoints, proceedDistance);  
+fileTailStart = sprintf('_distance_%d_range_%d_proceeddist_%.2f', startDist, sensingRange, proceedDistance);  
+
+if useWaypoints == true
+    fileTailStart = strcat(fileTailStart, sprintf('nwaypoints_%d', nWaypoints));
+else 
+    fileTailStart = strcat(fileTailStart, 'waypointsfalse');
+    
+end
 
 if modulateSpeeds ~= "off"
     fileTailStart = strcat(fileTailStart, sprintf('modulate_%s_m%.2f',modulateSpeeds, maxDist));
